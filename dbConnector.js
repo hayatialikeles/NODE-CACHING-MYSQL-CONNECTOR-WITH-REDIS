@@ -7,7 +7,7 @@ const con = db.createPool({
     user: env.DB_USERNAME,
     password: env.DB_PASSWORD,
     database: env.DB_NAME,
-    connectionLimit: 20000,
+    connectionLimit: 100, // Default 10
     queueLimit: 20,
     connectTimeout: 1000000,  // acquireTimeout yerine connectTimeout kullanıldı
     multipleStatements: true,
@@ -27,16 +27,20 @@ module.exports = {
      * @throws {Error} - If an error occurs during the query execution.
      */
     async QuaryCache(sql, parameters, resetCacheName = null) {
+        let connection;
         try {
-            const connection = await con.getConnection();
+            connection = await con.getConnection();
             const [data] = await connection.query(sql, parameters);
-            connection.release();
             if (resetCacheName) {
                 await delPrefixKeyItem(resetCacheName);
             }
             return data;
         } catch (err) {
             throw new Error(err.message);
+        } finally {
+            if (connection) {
+                connection.release();
+            }
         }
     },
     /**
@@ -51,6 +55,7 @@ module.exports = {
      * @throws {Error} - If there is an error while retrieving the data.
      */
     async getCacheQuery(sql, parameters, cacheName) {
+        let connection;
         try {
             const cachedData = await getArrayItem(cacheName);
 
@@ -58,14 +63,16 @@ module.exports = {
                 return cachedData;
             }
 
-            const connection = await con.getConnection();
+            connection = await con.getConnection();
             const [data] = await connection.query(sql, parameters);
-            connection.release();
-
             await addArrayItem(cacheName, data);
             return data;
         } catch (err) {
             throw new Error(err.message);
+        } finally {
+            if (connection) {
+                connection.release();
+            }
         }
     },
 
@@ -83,6 +90,7 @@ module.exports = {
      * @throws {Error} - If an error occurs during the execution of the function.
      */
     async getCacheQueryPagination(sql, parameters, cacheName, page, pageSize = 30) {
+        let connection;
         try {
             const cachedData = await getArrayItem(cacheName);
     
@@ -90,22 +98,21 @@ module.exports = {
                 return cachedData;
             }
     
-            const connection = await con.getConnection();
+            connection = await con.getConnection();
     
-            // Önce orijinal sorguyla toplam sayıyı al
+            // Get total count with original query
             const [allData] = await connection.query(sql, parameters);
             const filteredData = allData.filter(r => r.id > 0);
             const totalCount = filteredData.length;
     
-            // Sayfalama için SQL'i düzenle
+            // Modify SQL for pagination
             const offset = page * pageSize;
             const paginatedSql = `${sql} LIMIT ${offset}, ${pageSize}`;
     
-            // Sayfalanmış veriyi çek
+            // Get paginated data
             const [data] = await connection.query(paginatedSql, parameters);
-            connection.release();
     
-            // Sonucu hazırla
+            // Prepare result
             const result = {
                 totalCount,
                 pageCount: Math.ceil(totalCount / pageSize),
@@ -116,6 +123,10 @@ module.exports = {
             return result;
         } catch (err) {
             throw new Error(err.message);
+        } finally {
+            if (connection) {
+                connection.release();
+            }
         }
     }
 };
