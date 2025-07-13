@@ -2,18 +2,51 @@ const db = require('mysql2/promise');
 const { getArrayItem, addArrayItem, delPrefixKeyItem } = require('./redis.Connector');
 require('dotenv').config();
 const env = process.env;
+
+// Check if Redis is enabled (default: true)
+const REDIS_ENABLED = env.REDIS_ENABLED !== 'false';
+
+// Validate required database configuration
+if (!env.DB_HOST || !env.DB_USERNAME || !env.DB_NAME) {
+    throw new Error('Missing required database configuration: DB_HOST, DB_USERNAME, and DB_NAME must be set');
+}
+
 const con = db.createPool({
     host: env.DB_HOST,
     user: env.DB_USERNAME,
-    password: env.DB_PASSWORD,
+    password: env.DB_PASSWORD || '',
     database: env.DB_NAME,
-    connectionLimit: 100, // Default 10
-    queueLimit: 20,
-    connectTimeout: 1000000,  // acquireTimeout yerine connectTimeout kullanıldı
-    multipleStatements: true,
-    port: env.DB_PORT,
-    timezone: env?.TIMEZONE ?? '+00:00',  // Null coalescing operator kullanımı
+    connectionLimit: parseInt(env.DB_CONNECTION_LIMIT) || 10,
+    queueLimit: parseInt(env.DB_QUEUE_LIMIT) || 0,
+    connectTimeout: parseInt(env.DB_CONNECT_TIMEOUT) || 10000,
+    multipleStatements: env.DB_MULTIPLE_STATEMENTS === 'true' || false,
+    port: parseInt(env.DB_PORT) || 3306,
+    timezone: env.TIMEZONE || '+00:00',
+    waitForConnections: true,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0
 });
+
+// Retry helper function
+async function executeWithRetry(fn, retries = 3, delay = 1000) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            
+            // Retry only on connection errors
+            if (error.code === 'ECONNREFUSED' || 
+                error.code === 'ETIMEDOUT' || 
+                error.code === 'ENOTFOUND' ||
+                error.code === 'ER_CON_COUNT_ERROR') {
+                await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+            } else {
+                throw error;
+            }
+        }
+    }
+}
 
 module.exports = {
     /**
@@ -27,21 +60,23 @@ module.exports = {
      * @throws {Error} - If an error occurs during the query execution.
      */
     async QuaryCache(sql, parameters, resetCacheName = null) {
-        let connection;
-        try {
-            connection = await con.getConnection();
-            const [data] = await connection.query(sql, parameters);
-            if (resetCacheName) {
-                await delPrefixKeyItem(resetCacheName);
+        return executeWithRetry(async () => {
+            let connection;
+            try {
+                connection = await con.getConnection();
+                const [data] = await connection.query(sql, parameters);
+                if (resetCacheName && REDIS_ENABLED) {
+                    await delPrefixKeyItem(resetCacheName);
+                }
+                return data;
+            } catch (err) {
+                throw new Error(err.message);
+            } finally {
+                if (connection) {
+                    connection.release();
+                }
             }
-            return data;
-        } catch (err) {
-            throw new Error(err.message);
-        } finally {
-            if (connection) {
-                connection.release();
-            }
-        }
+        });
     },
     /**
      * Retrieves data from cache or database based on the provided SQL query and parameters.
@@ -55,25 +90,32 @@ module.exports = {
      * @throws {Error} - If there is an error while retrieving the data.
      */
     async getCacheQuery(sql, parameters, cacheName) {
-        let connection;
-        try {
-            const cachedData = await getArrayItem(cacheName);
+        return executeWithRetry(async () => {
+            let connection;
+            try {
+                if (REDIS_ENABLED) {
+                    const cachedData = await getArrayItem(cacheName);
+                    if (cachedData.length > 0) {
+                        return cachedData;
+                    }
+                }
 
-            if (cachedData.length > 0) {
-                return cachedData;
+                connection = await con.getConnection();
+                const [data] = await connection.query(sql, parameters);
+                
+                if (REDIS_ENABLED) {
+                    await addArrayItem(cacheName, data);
+                }
+                
+                return data;
+            } catch (err) {
+                throw new Error(err.message);
+            } finally {
+                if (connection) {
+                    connection.release();
+                }
             }
-
-            connection = await con.getConnection();
-            const [data] = await connection.query(sql, parameters);
-            await addArrayItem(cacheName, data);
-            return data;
-        } catch (err) {
-            throw new Error(err.message);
-        } finally {
-            if (connection) {
-                connection.release();
-            }
-        }
+        });
     },
 
     /**
@@ -90,20 +132,26 @@ module.exports = {
      * @throws {Error} - If an error occurs during the execution of the function.
      */
     async getCacheQueryPagination(sql, parameters, cacheName, page, pageSize = 30) {
-        let connection;
-        try {
-            const cachedData = await getArrayItem(cacheName);
-    
-            if (typeof cachedData === 'object' && !Array.isArray(cachedData) && cachedData !== null) {
-                return cachedData;
-            }
-    
-            connection = await con.getConnection();
+        return executeWithRetry(async () => {
+            let connection;
+            try {
+                // Validate pageSize to prevent division by zero
+                if (pageSize <= 0) {
+                    throw new Error('Page size must be greater than 0');
+                }
+                
+                if (REDIS_ENABLED) {
+                    const cachedData = await getArrayItem(cacheName);
+                    if (typeof cachedData === 'object' && !Array.isArray(cachedData) && cachedData !== null) {
+                        return cachedData;
+                    }
+                }
+        
+                connection = await con.getConnection();
     
             // Get total count with original query
             const [allData] = await connection.query(sql, parameters);
-            const filteredData = allData.filter(r => r.id > 0);
-            const totalCount = filteredData.length;
+            const totalCount = allData.length;
     
             // Modify SQL for pagination
             const offset = page * pageSize;
@@ -116,17 +164,21 @@ module.exports = {
             const result = {
                 totalCount,
                 pageCount: Math.ceil(totalCount / pageSize),
-                detail: data.filter(r => r.id > 0)
+                detail: data
             };
     
-            await addArrayItem(cacheName, result);
-            return result;
-        } catch (err) {
-            throw new Error(err.message);
-        } finally {
-            if (connection) {
-                connection.release();
+                if (REDIS_ENABLED) {
+                    await addArrayItem(cacheName, result);
+                }
+                
+                return result;
+            } catch (err) {
+                throw new Error(err.message);
+            } finally {
+                if (connection) {
+                    connection.release();
+                }
             }
-        }
+        });
     }
 };
