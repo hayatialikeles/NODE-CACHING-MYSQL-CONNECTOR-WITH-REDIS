@@ -13,6 +13,7 @@ MySQL bağlantılarınızı yönetirken ve sorgu sonuçlarını Redis ile önbel
 - Yapılandırılabilir connection pool
 - Redis'i devre dışı bırakma seçeneği
 - UUID ve sayısal ID desteği
+- Sorgu seviyesinde veritabanı değiştirme desteği
 
 ## Kurulum
 
@@ -56,26 +57,41 @@ REDIS_VHOST="uygulamam"          # İsteğe bağlı - Redis anahtar öneki
 #### Fonksiyon İmzası
 
 ```javascript
-getCacheQuery(sql, parameters, cacheName)
+getCacheQuery(sql, parameters, cacheName, database = null)
 ```
 
 - `sql`: Parametreli yer tutucular (?) içeren SQL sorgu metni
 - `parameters`: Yer tutucuları değiştirecek parametre değerlerinin dizisi
 - `cacheName`: Önbellekteki sonuç için benzersiz tanımlayıcı
+- `database`: (Opsiyonel) Sorgu çalıştırılacak veritabanı adı
 
 #### Örnek
 
 ```javascript
 const { getCacheQuery } = require('mysql-redis-connector');
 
-// Belirli bir şirketin tüm kullanıcılarını getir
+// Belirli bir şirketin tüm kullanıcılarını getir (varsayılan DB)
 getCacheQuery(
-  "SELECT * FROM users WHERE company_id = ?", 
-  [companyId], 
+  "SELECT * FROM users WHERE company_id = ?",
+  [companyId],
   `userlist-${companyId}`
 )
 .then(data => {
   // Veriyi işle
+  console.log(data);
+})
+.catch(err => {
+  console.error(err);
+});
+
+// Farklı bir veritabanından veri çek (database parametresi ile)
+getCacheQuery(
+  "SELECT * FROM products WHERE category_id = ?",
+  [categoryId],
+  `products-${categoryId}`,
+  'ecommerce_db'  // Sorgu bu veritabanında çalışır
+)
+.then(data => {
   console.log(data);
 })
 .catch(err => {
@@ -90,7 +106,7 @@ getCacheQuery(
 #### Fonksiyon İmzası
 
 ```javascript
-getCacheQueryPagination(sql, parameters, cacheName, page, pageSize = 30)
+getCacheQueryPagination(sql, parameters, cacheName, page, pageSize = 30, database = null)
 ```
 
 - `sql`: Parametreli yer tutucular (?) içeren SQL sorgu metni
@@ -98,13 +114,14 @@ getCacheQueryPagination(sql, parameters, cacheName, page, pageSize = 30)
 - `cacheName`: Önbellekteki sonuç için benzersiz tanımlayıcı
 - `page`: Sayfa numarası (0 tabanlı indeks)
 - `pageSize`: Sayfa başına öğe sayısı (varsayılan: 30)
+- `database`: (Opsiyonel) Sorgu çalıştırılacak veritabanı adı
 
 #### Örnek
 
 ```javascript
 const { getCacheQueryPagination } = require('mysql-redis-connector');
 
-// Ürünlerin sayfalanmış listesini getir
+// Ürünlerin sayfalanmış listesini getir (varsayılan DB)
 getCacheQueryPagination(
   "SELECT * FROM products WHERE category = ? ORDER BY created_at DESC",
   [categoryId],
@@ -124,6 +141,22 @@ getCacheQueryPagination(
 .catch(err => {
   console.error(err);
 });
+
+// Farklı bir veritabanından sayfalanmış veri
+getCacheQueryPagination(
+  "SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC",
+  [userId],
+  `orders-user-${userId}-page-${page}`,
+  page,
+  20,
+  'analytics_db'  // Sorgu bu veritabanında çalışır
+)
+.then(result => {
+  console.log(result);
+})
+.catch(err => {
+  console.error(err);
+});
 ```
 
 ### Veri Güncelleme ve Önbellek Temizleme
@@ -133,19 +166,20 @@ getCacheQueryPagination(
 #### Fonksiyon İmzası
 
 ```javascript
-QuaryCache(sql, parameters, resetCacheName = null)
+QuaryCache(sql, parameters, resetCacheName = null, database = null)
 ```
 
 - `sql`: Parametreli yer tutucular (?) içeren SQL sorgu metni
 - `parameters`: Yer tutucuları değiştirecek parametre değerlerinin dizisi
 - `resetCacheName`: Geçersiz kılınacak önbellek anahtarı deseni (isteğe bağlı)
+- `database`: (Opsiyonel) Sorgu çalıştırılacak veritabanı adı
 
 #### Örnek
 
 ```javascript
 const { QuaryCache } = require('mysql-redis-connector');
 
-// Yeni bir kullanıcı ekle ve kullanıcı listesi önbelleğini temizle
+// Yeni bir kullanıcı ekle ve kullanıcı listesi önbelleğini temizle (varsayılan DB)
 QuaryCache(
   "INSERT INTO users SET fullname = ?, email = ?, password = ?, company_id = ?",
   [fullname, email, hashedPassword, companyId],
@@ -153,6 +187,20 @@ QuaryCache(
 )
 .then(result => {
   console.log(`Kullanıcı eklendi, ID: ${result.insertId}`);
+})
+.catch(err => {
+  console.error(err);
+});
+
+// Farklı bir veritabanında ürün güncelle
+QuaryCache(
+  "UPDATE products SET stock = stock - ? WHERE product_id = ?",
+  [quantity, productId],
+  `products-${productId}`,
+  'inventory_db'  // Sorgu bu veritabanında çalışır
+)
+.then(result => {
+  console.log(`Ürün güncellendi, etkilenen satır: ${result.affectedRows}`);
 })
 .catch(err => {
   console.error(err);
@@ -266,24 +314,39 @@ async function useRedisClient() {
 
 ## Yeni İyileştirmeler
 
-### 1. Otomatik Yeniden Deneme (Retry Mechanism)
+### 1. Sorgu Seviyesinde Veritabanı Değiştirme
+Artık her sorgu için farklı bir veritabanı belirtebilirsiniz. Bu özellik, aynı MySQL sunucusunda birden fazla veritabanı ile çalışmanız gerektiğinde kullanışlıdır.
+
+```javascript
+// Örnek: analytics_db veritabanından veri çek
+getCacheQuery(
+  "SELECT * FROM user_stats WHERE date = ?",
+  [today],
+  `stats-${today}`,
+  'analytics_db'  // Farklı DB
+)
+```
+
+Tüm fonksiyonlar (`QuaryCache`, `getCacheQuery`, `getCacheQueryPagination`) artık opsiyonel `database` parametresi kabul eder.
+
+### 2. Otomatik Yeniden Deneme (Retry Mechanism)
 Bağlantı hatalarında otomatik olarak 3 kez yeniden deneme yapar. Desteklenen hata kodları:
 - `ECONNREFUSED`: Bağlantı reddedildi
 - `ETIMEDOUT`: Zaman aşımı
 - `ENOTFOUND`: Host bulunamadı
 - `ER_CON_COUNT_ERROR`: Bağlantı limiti aşıldı
 
-### 2. Redis'i Devre Dışı Bırakma
+### 3. Redis'i Devre Dışı Bırakma
 `REDIS_ENABLED=false` ayarlayarak Redis önbelleklemeyi tamamen devre dışı bırakabilirsiniz. Bu durumda tüm sorgular doğrudan veritabanından çalışır.
 
-### 3. Gelişmiş Connection Pool
+### 4. Gelişmiş Connection Pool
 MySQL bağlantı havuzu artık daha fazla yapılandırma seçeneği sunuyor:
 - Connection limit
 - Queue limit
 - Connect timeout
 - Keep-alive desteği
 
-### 4. UUID Desteği
+### 5. UUID Desteği
 Artık hem sayısal ID'ler hem de UUID formatındaki ID'ler destekleniyor. Sayfalama fonksiyonu tüm kayıt türleriyle uyumlu.
 
 ## En İyi Uygulamalar
@@ -301,6 +364,8 @@ Artık hem sayısal ID'ler hem de UUID formatındaki ID'ler destekleniyor. Sayfa
 6. **Connection Pool Ayarlarını Optimize Edin**: Uygulamanızın yüküne göre `DB_CONNECTION_LIMIT` ve `DB_QUEUE_LIMIT` değerlerini ayarlayın.
 
 7. **Hata Durumlarını Yönetin**: Retry mekanizması otomatik olarak bağlantı hatalarını yönetir, ancak uygulama kodunuzda da hata yakalama kullanın.
+
+8. **Veritabanı Değiştirme Özelliğini Akıllıca Kullanın**: Farklı veritabanlarına erişirken, önbellek anahtarlarınıza veritabanı adını da ekleyerek çakışmaları önleyin (örn. `analytics_db:stats-${today}`).
 
 ## Lisans
 
