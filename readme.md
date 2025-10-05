@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/node-caching-mysql-connector-with-redis.svg)](https://www.npmjs.com/package/node-caching-mysql-connector-with-redis)
 [![Test Coverage](https://img.shields.io/badge/coverage-100%25%20statements-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
-[![Tests](https://img.shields.io/badge/tests-46%20passing-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
+[![Tests](https://img.shields.io/badge/tests-51%20passing-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
 
 MySQL bağlantılarınızı yönetirken ve sorgu sonuçlarını Redis ile önbelleğe alarak uygulamanızın performansını artıran, production-ready bir Node.js kütüphanesi.
@@ -12,6 +12,7 @@ MySQL bağlantılarınızı yönetirken ve sorgu sonuçlarını Redis ile önbel
 - MySQL sorgu sonuçlarının Redis'te otomatik önbelleğe alınması
 - Sayfalama desteği ile önbellekleme
 - Veri güncellemeleri için önbellek temizleme
+- **Doğrudan Redis fonksiyon erişimi** - getArrayItem, addArrayItem, vs.
 - Anahtar çakışmalarını önlemek için isim alanı (namespace) desteği
 - Parametreli sorgular ile SQL injection koruması
 - Otomatik yeniden deneme mekanizması (retry mechanism)
@@ -32,7 +33,7 @@ Kütüphane **%100 test coverage** ile production-ready kalite garantisi sunar:
 - ✅ **%100 Statement Coverage**
 - ✅ **%93.82 Branch Coverage**
 - ✅ **%100 Function Coverage**
-- ✅ **46 Kapsamlı Unit Test** (Tümü başarılı)
+- ✅ **51 Kapsamlı Unit Test** (Tümü başarılı)
 - ✅ **Configuration Validation** testleri
 - ✅ **Otomatik Retry Mekanizması** testleri
 - ✅ **Error Handling & Edge Cases** testleri
@@ -73,6 +74,25 @@ REDIS_VHOST="uygulamam"          # İsteğe bağlı - Redis anahtar öneki
 
 ## Kullanım Kılavuzu
 
+### Import
+
+```javascript
+// Tüm fonksiyonları import et
+const {
+    // Database fonksiyonları
+    QuaryCache,
+    getCacheQuery,
+    getCacheQueryPagination,
+
+    // Redis fonksiyonları
+    getArrayItem,
+    addArrayItem,
+    delKeyItem,
+    delPrefixKeyItem,
+    getRedisClient
+} = require('node-caching-mysql-connector-with-redis');
+```
+
 ### Temel Önbellekli Sorgu
 
 `getCacheQuery` fonksiyonu, SQL sorgularını çalıştırır ve sonuçları Redis'te önbelleğe alarak sonraki çağrılarda performansı artırır.
@@ -91,7 +111,7 @@ getCacheQuery(sql, parameters, cacheName, database = null)
 #### Örnek
 
 ```javascript
-const { getCacheQuery } = require('mysql-redis-connector');
+const { getCacheQuery } = require('node-caching-mysql-connector-with-redis');
 
 // Belirli bir şirketin tüm kullanıcılarını getir (varsayılan DB)
 getCacheQuery(
@@ -142,7 +162,7 @@ getCacheQueryPagination(sql, parameters, cacheName, page, pageSize = 30, databas
 #### Örnek
 
 ```javascript
-const { getCacheQueryPagination } = require('mysql-redis-connector');
+const { getCacheQueryPagination } = require('node-caching-mysql-connector-with-redis');
 
 // Ürünlerin sayfalanmış listesini getir (varsayılan DB)
 getCacheQueryPagination(
@@ -200,7 +220,7 @@ QuaryCache(sql, parameters, resetCacheName = null, database = null)
 #### Örnek
 
 ```javascript
-const { QuaryCache } = require('mysql-redis-connector');
+const { QuaryCache } = require('node-caching-mysql-connector-with-redis');
 
 // Yeni bir kullanıcı ekle ve kullanıcı listesi önbelleğini temizle (varsayılan DB)
 QuaryCache(
@@ -271,8 +291,16 @@ Redis anahtarları otomatik olarak `REDIS_VHOST` değeri ile öneklenir (eğer a
 
 ### Redis Connector Kullanım Örnekleri
 
+Artık Redis fonksiyonlarına doğrudan paketin ana export'undan erişebilirsiniz:
+
 ```javascript
-const { getArrayItem, addArrayItem, delKeyItem, delPrefixKeyItem, getRedisClient } = require('./redis.Connector');
+const {
+    getArrayItem,
+    addArrayItem,
+    delKeyItem,
+    delPrefixKeyItem,
+    getRedisClient
+} = require('node-caching-mysql-connector-with-redis');
 
 // Veri okuma
 async function readFromCache() {
@@ -335,6 +363,57 @@ async function useRedisClient() {
 // Bu durumda 'user-list-123' anahtarı Redis'te 'myapp:user-list-123' olarak saklanır
 ```
 
+## Tam Kullanım Örneği
+
+```javascript
+const {
+    // Database functions
+    getCacheQuery,
+    QuaryCache,
+
+    // Redis functions
+    addArrayItem,
+    delPrefixKeyItem
+} = require('node-caching-mysql-connector-with-redis');
+
+// Örnek: E-ticaret uygulaması
+
+// 1. Ürünleri cache'den oku
+async function getProducts(categoryId) {
+    const products = await getCacheQuery(
+        "SELECT * FROM products WHERE category_id = ? AND active = 1",
+        [categoryId],
+        `products-category-${categoryId}`
+    );
+    return products;
+}
+
+// 2. Yeni ürün ekle ve cache'i temizle
+async function addProduct(name, categoryId, price) {
+    const result = await QuaryCache(
+        "INSERT INTO products SET name = ?, category_id = ?, price = ?",
+        [name, categoryId, price],
+        `products-category-${categoryId}` // Bu kategori cache'ini temizle
+    );
+    return result.insertId;
+}
+
+// 3. Redis'i doğrudan kullan
+async function cacheUserSession(userId, sessionData) {
+    await addArrayItem(`session-${userId}`, sessionData, 3600); // 1 saat TTL
+}
+
+// 4. Farklı DB'den veri çek
+async function getAnalytics(date) {
+    return await getCacheQuery(
+        "SELECT * FROM daily_stats WHERE date = ?",
+        [date],
+        `analytics-${date}`,
+        'analytics_db' // Farklı veritabanı
+    );
+}
+```
+
 ## Yeni İyileştirmeler
 
 ### 1. Kapsamlı Test Coverage ✅
@@ -342,7 +421,7 @@ Versiyon 2.5.0 ile birlikte:
 - **%100 Statement Coverage** - Tam kod kapsama
 - **%93.82 Branch Coverage** - Karar noktaları
 - **%100 Function Coverage** - Tüm fonksiyonlar test edildi
-- **46 Otomatik Test** (unit + integration + edge cases)
+- **51 Otomatik Test** (unit + integration + edge cases)
 - Mock-based testing (Redis & MySQL)
 - Configuration validation testleri
 - Error handling testleri
@@ -413,14 +492,16 @@ MIT
 ## Versiyon Geçmişi
 
 ### v2.5.0 (2025-01-05)
-- ✅ Sorgu seviyesinde veritabanı değiştirme özelliği
+- ✅ **Doğrudan Redis Erişimi** - Redis fonksiyonlarına ana export'tan erişim
+- ✅ **Sorgu seviyesinde veritabanı değiştirme** özelliği
 - ✅ **%100 Statement Coverage** - Production-ready kalite
 - ✅ **%93.82 Branch Coverage**
-- ✅ **46 Kapsamlı Test** (unit + integration + edge cases)
+- ✅ **51 Kapsamlı Test** (unit + integration + edge cases)
 - ✅ Configuration validation testleri
 - ✅ Error handling & retry mechanism testleri
 - ✅ Mock-based testing (proxyquire)
 - ✅ Coverage raporu (nyc - HTML & Terminal)
+- ✅ Export structure testleri
 - 🔧 Error handling iyileştirmeleri
 
 ### v2.4.x
