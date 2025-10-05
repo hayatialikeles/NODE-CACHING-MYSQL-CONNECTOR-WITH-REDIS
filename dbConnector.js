@@ -74,7 +74,7 @@ module.exports = {
                 }
                 return data;
             } catch (err) {
-                throw new Error(err.message);
+                throw err;
             } finally {
                 if (connection) {
                     connection.release();
@@ -117,7 +117,7 @@ module.exports = {
 
                 return data;
             } catch (err) {
-                throw new Error(err.message);
+                throw err;
             } finally {
                 if (connection) {
                     connection.release();
@@ -185,7 +185,7 @@ module.exports = {
 
                 return result;
             } catch (err) {
-                throw new Error(err.message);
+                throw err;
             } finally {
                 if (connection) {
                     connection.release();
