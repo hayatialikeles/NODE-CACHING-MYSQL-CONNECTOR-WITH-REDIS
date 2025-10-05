@@ -91,4 +91,36 @@ describe('index.js - Main Export', () => {
         expect(delPrefixKeyItem).to.be.a('function');
         expect(getRedisClient).to.be.a('function');
     });
+
+    describe('Backward Compatibility (v2.4.x)', () => {
+        it('should support v2.4.x style usage (dbConnector.functionName)', () => {
+            // Old style - direct property access
+            expect(index.QuaryCache).to.be.a('function');
+            expect(index.getCacheQuery).to.be.a('function');
+            expect(index.getCacheQueryPagination).to.be.a('function');
+        });
+
+        it('should support both old and new import styles simultaneously', () => {
+            // Simulate old code
+            const dbConnector = index;
+            expect(dbConnector.QuaryCache).to.be.a('function');
+
+            // Simulate new code in same codebase
+            const { getCacheQuery } = index;
+            expect(getCacheQuery).to.be.a('function');
+
+            // Both should reference same function
+            expect(dbConnector.getCacheQuery).to.equal(getCacheQuery);
+        });
+
+        it('should maintain function references across import styles', () => {
+            const dbConnector = index;
+            const { QuaryCache, getCacheQuery, getArrayItem } = index;
+
+            // Verify they're the same functions
+            expect(dbConnector.QuaryCache).to.equal(QuaryCache);
+            expect(dbConnector.getCacheQuery).to.equal(getCacheQuery);
+            expect(dbConnector.getArrayItem).to.equal(getArrayItem);
+        });
+    });
 });

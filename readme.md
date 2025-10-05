@@ -2,7 +2,9 @@
 
 [![npm version](https://img.shields.io/npm/v/node-caching-mysql-connector-with-redis.svg)](https://www.npmjs.com/package/node-caching-mysql-connector-with-redis)
 [![Test Coverage](https://img.shields.io/badge/coverage-100%25%20statements-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
-[![Tests](https://img.shields.io/badge/tests-51%20passing-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
+[![Tests](https://img.shields.io/badge/tests-54%20passing-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
+[![Backward Compatible](https://img.shields.io/badge/backward%20compatible-100%25-blue.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
+[![TypeScript](https://img.shields.io/badge/TypeScript-definitions%20included-blue.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
 
 MySQL bağlantılarınızı yönetirken ve sorgu sonuçlarını Redis ile önbelleğe alarak uygulamanızın performansını artıran, production-ready bir Node.js kütüphanesi.
@@ -12,6 +14,7 @@ MySQL bağlantılarınızı yönetirken ve sorgu sonuçlarını Redis ile önbel
 - MySQL sorgu sonuçlarının Redis'te otomatik önbelleğe alınması
 - Sayfalama desteği ile önbellekleme
 - Veri güncellemeleri için önbellek temizleme
+- **TypeScript desteği** - Tam tip tanımlamaları ile IntelliSense
 - **Doğrudan Redis fonksiyon erişimi** - getArrayItem, addArrayItem, vs.
 - Anahtar çakışmalarını önlemek için isim alanı (namespace) desteği
 - Parametreli sorgular ile SQL injection koruması
@@ -33,7 +36,8 @@ Kütüphane **%100 test coverage** ile production-ready kalite garantisi sunar:
 - ✅ **%100 Statement Coverage**
 - ✅ **%93.82 Branch Coverage**
 - ✅ **%100 Function Coverage**
-- ✅ **51 Kapsamlı Unit Test** (Tümü başarılı)
+- ✅ **54 Kapsamlı Unit Test** (Tümü başarılı)
+- ✅ **%100 Backward Compatible** - v2.4.x kodunuz çalışmaya devam eder
 - ✅ **Configuration Validation** testleri
 - ✅ **Otomatik Retry Mekanizması** testleri
 - ✅ **Error Handling & Edge Cases** testleri
@@ -76,6 +80,7 @@ REDIS_VHOST="uygulamam"          # İsteğe bağlı - Redis anahtar öneki
 
 ### Import
 
+**JavaScript:**
 ```javascript
 // Tüm fonksiyonları import et
 const {
@@ -91,6 +96,27 @@ const {
     delPrefixKeyItem,
     getRedisClient
 } = require('node-caching-mysql-connector-with-redis');
+```
+
+**TypeScript:**
+```typescript
+import {
+    // Database fonksiyonları
+    QuaryCache,
+    getCacheQuery,
+    getCacheQueryPagination,
+
+    // Redis fonksiyonları
+    getArrayItem,
+    addArrayItem,
+    delKeyItem,
+    delPrefixKeyItem,
+    getRedisClient,
+
+    // Type definitions
+    type QueryResult,
+    type PaginationResult
+} from 'node-caching-mysql-connector-with-redis';
 ```
 
 ### Temel Önbellekli Sorgu
@@ -363,7 +389,84 @@ async function useRedisClient() {
 // Bu durumda 'user-list-123' anahtarı Redis'te 'myapp:user-list-123' olarak saklanır
 ```
 
-## Tam Kullanım Örneği
+## TypeScript Kullanımı
+
+Paket, tam TypeScript desteği ile gelir. IntelliSense, auto-completion ve type checking ile güvenli kod yazın.
+
+### ✨ TypeScript Avantajları
+
+- ✅ **Tam Tip Güvenliği** - Compile-time'da hata yakalama
+- ✅ **IntelliSense Desteği** - IDE'de otomatik tamamlama
+- ✅ **Generic Types** - Sorgu sonuçlarınız için özel tipler
+- ✅ **Type Inference** - Akıllı tip çıkarımı
+- ✅ **JSDoc ile Dokümantasyon** - Hover'da detaylı açıklamalar
+
+### Tip Güvenliği ile Kullanım
+
+```typescript
+import {
+    getCacheQuery,
+    getCacheQueryPagination,
+    QuaryCache,
+    type PaginationResult
+} from 'node-caching-mysql-connector-with-redis';
+
+// Interface tanımla
+interface User {
+    id: number;
+    name: string;
+    email: string;
+    company_id: number;
+    created_at: Date;
+}
+
+interface Product {
+    id: number;
+    name: string;
+    price: number;
+    category_id: number;
+}
+
+// Tip güvenli sorgu
+async function getUsers(companyId: number): Promise<User[]> {
+    return await getCacheQuery<User>(
+        "SELECT * FROM users WHERE company_id = ?",
+        [companyId],
+        `users-company-${companyId}`
+    );
+}
+
+// Tip güvenli sayfalama
+async function getProducts(
+    categoryId: number,
+    page: number
+): Promise<PaginationResult<Product>> {
+    return await getCacheQueryPagination<Product>(
+        "SELECT * FROM products WHERE category_id = ?",
+        [categoryId],
+        `products-cat-${categoryId}-page-${page}`,
+        page,
+        25
+    );
+}
+
+// Kullanım
+const users = await getUsers(123);
+users.forEach(user => {
+    console.log(user.name); // Type-safe! IntelliSense çalışır
+    console.log(user.email); // ✅
+    // console.log(user.unknownField); // ❌ TypeScript hatası!
+});
+
+const productPage = await getProducts(5, 0);
+console.log(`Total products: ${productPage.totalCount}`);
+console.log(`Total pages: ${productPage.pageCount}`);
+productPage.detail.forEach(product => {
+    console.log(`${product.name}: $${product.price}`);
+});
+```
+
+## Tam Kullanım Örneği (JavaScript)
 
 ```javascript
 const {
@@ -421,7 +524,7 @@ Versiyon 2.5.0 ile birlikte:
 - **%100 Statement Coverage** - Tam kod kapsama
 - **%93.82 Branch Coverage** - Karar noktaları
 - **%100 Function Coverage** - Tüm fonksiyonlar test edildi
-- **51 Otomatik Test** (unit + integration + edge cases)
+- **54 Otomatik Test** (unit + integration + edge cases + backward compatibility)
 - Mock-based testing (Redis & MySQL)
 - Configuration validation testleri
 - Error handling testleri
@@ -489,16 +592,82 @@ Artık hem sayısal ID'ler hem de UUID formatındaki ID'ler destekleniyor. Sayfa
 
 MIT
 
+## Migration Guide (v2.4.x → v2.5.0)
+
+### ✅ %100 Geriye Dönük Uyumlu!
+
+v2.5.0, v2.4.x ile **tamamen uyumludur**. Kodunuzu değiştirmenize gerek yok!
+
+#### Eski Kod (v2.4.x) - Hala Çalışıyor ✅
+
+```javascript
+const dbConnector = require('node-caching-mysql-connector-with-redis');
+
+dbConnector.QuaryCache(...);
+dbConnector.getCacheQuery(...);
+dbConnector.getCacheQueryPagination(...);
+```
+
+#### Yeni Kod (v2.5.0) - Önerilen 🌟
+
+```javascript
+const {
+    QuaryCache,
+    getCacheQuery,
+    getCacheQueryPagination,
+    // Artık Redis fonksiyonları da erişilebilir!
+    getArrayItem,
+    addArrayItem,
+    delKeyItem
+} = require('node-caching-mysql-connector-with-redis');
+
+QuaryCache(...);
+getCacheQuery(...);
+```
+
+#### Hibrid Kullanım - Her İkisi de Desteklenir ✅
+
+```javascript
+// Eski kod - değiştirmeyin
+const dbConnector = require('node-caching-mysql-connector-with-redis');
+dbConnector.getCacheQuery(...);
+
+// Yeni kod - aynı projede
+const { addArrayItem } = require('node-caching-mysql-connector-with-redis');
+addArrayItem(...);
+```
+
+### Yeni Özellikler (Breaking Change YOK)
+
+1. ✅ **Redis Fonksiyonları Direkt Erişilebilir**
+   - Artık `./redis.Connector` import'una gerek yok
+   - Ana paketten destructure edebilirsiniz
+
+2. ✅ **Sorgu Seviyesinde DB Değiştirme**
+   - Yeni opsiyonel `database` parametresi
+   - Eski kodunuz çalışmaya devam eder
+
+3. ✅ **Geliştirilmiş Error Handling**
+   - Error kodları korunuyor
+   - Retry mekanizması daha güvenilir
+
 ## Versiyon Geçmişi
 
+### v2.5.2 (2025-01-05)
+- ✅ **TypeScript Desteği** - Tam tip tanımlamaları (.d.ts)
+- ✅ IntelliSense ve auto-completion desteği
+- ✅ Generic types ile type-safe queries
+
 ### v2.5.0 (2025-01-05)
+- ✅ **%100 Backward Compatible** - v2.4.x kodunuz değişmeden çalışır
 - ✅ **Doğrudan Redis Erişimi** - Redis fonksiyonlarına ana export'tan erişim
 - ✅ **Sorgu seviyesinde veritabanı değiştirme** özelliği
 - ✅ **%100 Statement Coverage** - Production-ready kalite
 - ✅ **%93.82 Branch Coverage**
-- ✅ **51 Kapsamlı Test** (unit + integration + edge cases)
+- ✅ **54 Kapsamlı Test** (unit + integration + edge cases + backward compatibility)
 - ✅ Configuration validation testleri
 - ✅ Error handling & retry mechanism testleri
+- ✅ Backward compatibility testleri
 - ✅ Mock-based testing (proxyquire)
 - ✅ Coverage raporu (nyc - HTML & Terminal)
 - ✅ Export structure testleri

@@ -1,14 +1,43 @@
 {
   "name": "node-caching-mysql-connector-with-redis",
   "version": "2.5.2",
-  "description": "",
+  "description": "MySQL caching connector with Redis support and TypeScript definitions",
   "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
     "test": "mocha ./test/**/*.js --timeout 60000 --reporter  spec --exit",
     "coverage": "nyc --reporter=text --reporter=html npm test"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Ali Hayati Keleş",
+  "license": "MIT",
+  "keywords": [
+    "mysql",
+    "redis",
+    "cache",
+    "caching",
+    "database",
+    "mysql2",
+    "connection-pool",
+    "query-cache",
+    "typescript",
+    "pagination"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS"
+  },
+  "bugs": {
+    "url": "https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS/issues"
+  },
+  "homepage": "https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS#readme",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "dbConnector.js",
+    "redis.Connector.js",
+    "readme.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "chai": "^4.3.6",
     "chai-http": "^4.3.0",
