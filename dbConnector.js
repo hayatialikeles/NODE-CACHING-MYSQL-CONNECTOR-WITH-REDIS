@@ -6,12 +6,74 @@ const env = process.env;
 // Check if Redis is enabled (default: true)
 const REDIS_ENABLED = env.REDIS_ENABLED !== 'false';
 
-// Validate required database configuration
-if (!env.DB_HOST || !env.DB_USERNAME || !env.DB_NAME) {
-    throw new Error('Missing required database configuration: DB_HOST, DB_USERNAME, and DB_NAME must be set');
+/**
+ * Validates required environment variables and provides helpful error messages
+ * @throws {Error} If any required configuration is missing
+ */
+function validateConfiguration() {
+    const errors = [];
+
+    // Required configurations
+    if (!env.DB_HOST) {
+        errors.push('DB_HOST is required (e.g., DB_HOST=localhost)');
+    }
+
+    if (!env.DB_USERNAME) {
+        errors.push('DB_USERNAME is required (e.g., DB_USERNAME=root)');
+    }
+
+    if (!env.DB_NAME) {
+        errors.push('DB_NAME is required (e.g., DB_NAME=my_database)');
+    }
+
+    // Validate optional numeric values if provided
+    if (env.DB_PORT && isNaN(parseInt(env.DB_PORT))) {
+        errors.push('DB_PORT must be a valid number (e.g., DB_PORT=3306)');
+    }
+
+    if (env.DB_CONNECTION_LIMIT && isNaN(parseInt(env.DB_CONNECTION_LIMIT))) {
+        errors.push('DB_CONNECTION_LIMIT must be a valid number (e.g., DB_CONNECTION_LIMIT=10)');
+    }
+
+    if (env.DB_QUEUE_LIMIT && isNaN(parseInt(env.DB_QUEUE_LIMIT))) {
+        errors.push('DB_QUEUE_LIMIT must be a valid number (e.g., DB_QUEUE_LIMIT=0)');
+    }
+
+    if (env.DB_CONNECT_TIMEOUT && isNaN(parseInt(env.DB_CONNECT_TIMEOUT))) {
+        errors.push('DB_CONNECT_TIMEOUT must be a valid number in milliseconds (e.g., DB_CONNECT_TIMEOUT=10000)');
+    }
+
+    // Validate Redis configuration if enabled
+    if (REDIS_ENABLED) {
+        if (!env.REDIS_SERVER) {
+            errors.push('REDIS_SERVER is required when Redis is enabled (e.g., REDIS_SERVER=localhost). Set REDIS_ENABLED=false to disable Redis.');
+        }
+
+        if (env.REDIS_PORT && isNaN(parseInt(env.REDIS_PORT))) {
+            errors.push('REDIS_PORT must be a valid number (e.g., REDIS_PORT=6379)');
+        }
+    }
+
+    if (errors.length > 0) {
+        const errorMessage = [
+            '❌ Configuration Error - Missing or invalid environment variables:',
+            '',
+            ...errors.map(err => `  • ${err}`),
+            '',
+            '💡 Tip: Copy .env.example to .env and configure your settings:',
+            '  cp .env.example .env',
+            ''
+        ].join('\n');
+
+        throw new Error(errorMessage);
+    }
 }
 
-const con = db.createPool({
+// Validate configuration on module load
+validateConfiguration();
+
+// Connection pool configuration with auto-reconnection
+const poolConfig = {
     host: env.DB_HOST,
     user: env.DB_USERNAME,
     password: env.DB_PASSWORD || '',
@@ -25,12 +87,30 @@ const con = db.createPool({
     waitForConnections: true,
     enableKeepAlive: true,
     keepAliveInitialDelay: 0
-});
+};
 
-// Retry helper function with optional database switching
-async function executeWithRetry(fn, retries = 3, delay = 1000, database = null) {
+const con = db.createPool(poolConfig);
+
+// Graceful shutdown flag
+let isShuttingDown = false;
+
+// Retry helper function with optional database switching and timeout protection
+async function executeWithRetry(fn, retries = 3, delay = 1000, database = null, timeout = null) {
     for (let i = 0; i < retries; i++) {
         try {
+            if (isShuttingDown) {
+                throw new Error('Server is shutting down, cannot process new queries');
+            }
+
+            if (timeout) {
+                return await Promise.race([
+                    fn(database),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Query timeout exceeded')), timeout)
+                    )
+                ]);
+            }
+
             return await fn(database);
         } catch (error) {
             if (i === retries - 1) throw error;
@@ -39,6 +119,7 @@ async function executeWithRetry(fn, retries = 3, delay = 1000, database = null) 
             if (error.code === 'ECONNREFUSED' ||
                 error.code === 'ETIMEDOUT' ||
                 error.code === 'ENOTFOUND' ||
+                error.code === 'PROTOCOL_CONNECTION_LOST' ||
                 error.code === 'ER_CON_COUNT_ERROR') {
                 await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
             } else {
@@ -192,5 +273,139 @@ module.exports = {
                 }
             }
         }, 3, 1000, database);
+    },
+
+    /**
+     * Executes a bulk insert operation with chunking for large datasets.
+     * Automatically splits large datasets into chunks to prevent memory issues.
+     *
+     * @param {string} table - The table name to insert into.
+     * @param {Array} records - Array of objects with column-value pairs.
+     * @param {Object} options - Optional settings: { database, chunkSize, resetCacheName }
+     * @returns {Promise<Object>} - A promise that resolves with insert statistics.
+     * @throws {Error} - If an error occurs during the bulk insert.
+     */
+    async bulkInsert(table, records, options = {}) {
+        const { database = null, chunkSize = 1000, resetCacheName = null } = options;
+
+        if (!records || records.length === 0) {
+            return { insertedRows: 0, chunks: 0 };
+        }
+
+        return executeWithRetry(async (db) => {
+            let connection;
+            try {
+                connection = await con.getConnection();
+                if (db) {
+                    await connection.query(`USE \`${db}\``);
+                }
+
+                const columns = Object.keys(records[0]);
+                let totalInserted = 0;
+                let chunks = 0;
+
+                // Process in chunks
+                for (let i = 0; i < records.length; i += chunkSize) {
+                    const chunk = records.slice(i, i + chunkSize);
+                    const values = chunk.map(record =>
+                        columns.map(col => record[col])
+                    );
+
+                    const placeholders = chunk.map(() =>
+                        `(${columns.map(() => '?').join(',')})`
+                    ).join(',');
+
+                    const sql = `INSERT INTO ${table} (${columns.join(',')}) VALUES ${placeholders}`;
+                    const flatValues = values.flat();
+
+                    const [result] = await connection.query(sql, flatValues);
+                    totalInserted += result.affectedRows;
+                    chunks++;
+                }
+
+                if (resetCacheName && REDIS_ENABLED) {
+                    await delPrefixKeyItem(resetCacheName);
+                }
+
+                return { insertedRows: totalInserted, chunks };
+            } catch (err) {
+                throw err;
+            } finally {
+                if (connection) {
+                    connection.release();
+                }
+            }
+        }, 3, 1000, database);
+    },
+
+    /**
+     * Executes a query with timeout protection.
+     * Prevents long-running queries from blocking the application.
+     *
+     * @param {string} sql - The SQL query to execute.
+     * @param {Array} parameters - The parameters to be passed to the SQL query.
+     * @param {string} cacheName - The name of the cache.
+     * @param {Object} options - Optional settings: { timeout, database }
+     * @returns {Promise<any>} - A promise that resolves with the result of the query.
+     * @throws {Error} - If timeout is exceeded or query fails.
+     */
+    async getCacheQueryWithTimeout(sql, parameters, cacheName, options = {}) {
+        const { timeout = 30000, database = null } = options;
+        return executeWithRetry(async (db) => {
+            let connection;
+            try {
+                if (REDIS_ENABLED) {
+                    const cachedData = await getArrayItem(cacheName);
+                    if (cachedData.length > 0) {
+                        return cachedData;
+                    }
+                }
+
+                connection = await con.getConnection();
+                if (db) {
+                    await connection.query(`USE \`${db}\``);
+                }
+                const [data] = await connection.query(sql, parameters);
+
+                if (REDIS_ENABLED) {
+                    await addArrayItem(cacheName, data);
+                }
+
+                return data;
+            } catch (err) {
+                throw err;
+            } finally {
+                if (connection) {
+                    connection.release();
+                }
+            }
+        }, 3, 1000, database, timeout);
+    },
+
+    /**
+     * Gracefully closes all database connections.
+     * Should be called during application shutdown to prevent connection leaks.
+     *
+     * @returns {Promise<void>}
+     */
+    async closeConnections() {
+        isShuttingDown = true;
+        console.log('Closing database connections gracefully...');
+        await con.end();
+        console.log('Database pool closed');
+    },
+
+    /**
+     * Gets current pool statistics for monitoring.
+     *
+     * @returns {Object} - Pool statistics including active connections.
+     */
+    getPoolStats() {
+        return {
+            totalConnections: con.pool._allConnections.length,
+            activeConnections: con.pool._allConnections.length - con.pool._freeConnections.length,
+            freeConnections: con.pool._freeConnections.length,
+            queuedRequests: con.pool._connectionQueue.length
+        };
     }
 };

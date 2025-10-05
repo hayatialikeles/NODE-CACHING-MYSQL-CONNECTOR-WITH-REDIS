@@ -226,6 +226,138 @@ declare module 'node-caching-mysql-connector-with-redis' {
      */
     export function getRedisClient(): RedisClient;
 
+    // ==================== PRODUCTION-GRADE FEATURES (v2.5.3+) ====================
+
+    /**
+     * Bulk insert options
+     */
+    export interface BulkInsertOptions {
+        /** Database name to switch to */
+        database?: string | null;
+        /** Number of records per chunk (default: 1000) */
+        chunkSize?: number;
+        /** Cache name prefix to reset after insert */
+        resetCacheName?: string | null;
+    }
+
+    /**
+     * Bulk insert result
+     */
+    export interface BulkInsertResult {
+        /** Total number of rows inserted */
+        insertedRows: number;
+        /** Number of chunks processed */
+        chunks: number;
+    }
+
+    /**
+     * Query timeout options
+     */
+    export interface QueryTimeoutOptions {
+        /** Query timeout in milliseconds (default: 30000) */
+        timeout?: number;
+        /** Database name to switch to */
+        database?: string | null;
+    }
+
+    /**
+     * Pool statistics
+     */
+    export interface PoolStats {
+        /** Total number of connections in the pool */
+        totalConnections: number;
+        /** Number of active connections currently in use */
+        activeConnections: number;
+        /** Number of free connections available */
+        freeConnections: number;
+        /** Number of queued requests waiting for a connection */
+        queuedRequests: number;
+    }
+
+    /**
+     * Executes a bulk insert operation with automatic chunking for large datasets.
+     * Prevents memory issues by splitting large datasets into manageable chunks.
+     *
+     * @param table - The table name to insert into
+     * @param records - Array of objects with column-value pairs
+     * @param options - Optional settings for bulk insert
+     * @returns Promise resolving to insert statistics
+     *
+     * @example
+     * ```typescript
+     * const users = [
+     *   { name: 'Alice', email: 'alice@example.com' },
+     *   { name: 'Bob', email: 'bob@example.com' }
+     * ];
+     *
+     * const result = await bulkInsert('users', users, {
+     *   chunkSize: 500,
+     *   resetCacheName: 'users_'
+     * });
+     * // { insertedRows: 2, chunks: 1 }
+     * ```
+     */
+    export function bulkInsert<T = any>(
+        table: string,
+        records: T[],
+        options?: BulkInsertOptions
+    ): Promise<BulkInsertResult>;
+
+    /**
+     * Executes a query with timeout protection to prevent long-running queries.
+     * Automatically retries on connection errors with exponential backoff.
+     *
+     * @param sql - The SQL query to execute
+     * @param parameters - Query parameters
+     * @param cacheName - Cache key for storing results
+     * @param options - Optional timeout and database settings
+     * @returns Promise resolving to query results
+     *
+     * @example
+     * ```typescript
+     * const users = await getCacheQueryWithTimeout<User>(
+     *   'SELECT * FROM users WHERE status = ?',
+     *   ['active'],
+     *   'active_users',
+     *   { timeout: 5000, database: 'analytics_db' }
+     * );
+     * ```
+     */
+    export function getCacheQueryWithTimeout<T = any>(
+        sql: string,
+        parameters: any[],
+        cacheName: string,
+        options?: QueryTimeoutOptions
+    ): Promise<T[]>;
+
+    /**
+     * Gracefully closes all database connections.
+     * Should be called during application shutdown to prevent connection leaks.
+     *
+     * @example
+     * ```typescript
+     * process.on('SIGTERM', async () => {
+     *   await closeConnections();
+     *   process.exit(0);
+     * });
+     * ```
+     */
+    export function closeConnections(): Promise<void>;
+
+    /**
+     * Gets current connection pool statistics for monitoring and debugging.
+     * Useful for detecting connection leaks or pool exhaustion.
+     *
+     * @returns Current pool statistics
+     *
+     * @example
+     * ```typescript
+     * const stats = getPoolStats();
+     * console.log(`Active: ${stats.activeConnections}/${stats.totalConnections}`);
+     * ```
+     */
+    export function getPoolStats(): PoolStats;
+
     // ==================== BACKWARD COMPATIBILITY ====================
 
     /**
@@ -246,6 +378,10 @@ declare module 'node-caching-mysql-connector-with-redis' {
         QuaryCache: typeof QuaryCache;
         getCacheQuery: typeof getCacheQuery;
         getCacheQueryPagination: typeof getCacheQueryPagination;
+        bulkInsert: typeof bulkInsert;
+        getCacheQueryWithTimeout: typeof getCacheQueryWithTimeout;
+        closeConnections: typeof closeConnections;
+        getPoolStats: typeof getPoolStats;
         getArrayItem: typeof getArrayItem;
         addArrayItem: typeof addArrayItem;
         delKeyItem: typeof delKeyItem;

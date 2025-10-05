@@ -44,6 +44,7 @@ describe('dbConnector', () => {
         process.env.DB_USERNAME = 'root';
         process.env.DB_NAME = 'testdb';
         process.env.REDIS_ENABLED = 'true';
+        process.env.REDIS_SERVER = 'localhost';
 
         // Load module with mocks
         dbConnector = proxyquire('../dbConnector', {
@@ -58,6 +59,11 @@ describe('dbConnector', () => {
         delete process.env.DB_USERNAME;
         delete process.env.DB_NAME;
         delete process.env.REDIS_ENABLED;
+        delete process.env.REDIS_SERVER;
+        delete process.env.DB_PORT;
+        delete process.env.DB_CONNECTION_LIMIT;
+        delete process.env.DB_QUEUE_LIMIT;
+        delete process.env.DB_CONNECT_TIMEOUT;
     });
 
     describe('Configuration Validation', () => {
@@ -69,7 +75,7 @@ describe('dbConnector', () => {
                     'mysql2/promise': { createPool: sinon.stub() },
                     './redis.Connector': mockRedis
                 });
-            }).to.throw('Missing required database configuration');
+            }).to.throw('DB_HOST is required');
         });
 
         it('should throw error if DB_USERNAME is missing', () => {
@@ -80,7 +86,7 @@ describe('dbConnector', () => {
                     'mysql2/promise': { createPool: sinon.stub() },
                     './redis.Connector': mockRedis
                 });
-            }).to.throw('Missing required database configuration');
+            }).to.throw('DB_USERNAME is required');
         });
 
         it('should throw error if DB_NAME is missing', () => {
@@ -91,7 +97,41 @@ describe('dbConnector', () => {
                     'mysql2/promise': { createPool: sinon.stub() },
                     './redis.Connector': mockRedis
                 });
-            }).to.throw('Missing required database configuration');
+            }).to.throw('DB_NAME is required');
+        });
+
+        it('should throw error if REDIS_SERVER is missing when Redis is enabled', () => {
+            delete process.env.REDIS_SERVER;
+
+            expect(() => {
+                proxyquire('../dbConnector', {
+                    'mysql2/promise': { createPool: sinon.stub() },
+                    './redis.Connector': mockRedis
+                });
+            }).to.throw('REDIS_SERVER is required');
+        });
+
+        it('should not throw error if REDIS_SERVER is missing when Redis is disabled', () => {
+            delete process.env.REDIS_SERVER;
+            process.env.REDIS_ENABLED = 'false';
+
+            expect(() => {
+                proxyquire('../dbConnector', {
+                    'mysql2/promise': { createPool: sinon.stub() },
+                    './redis.Connector': mockRedis
+                });
+            }).to.not.throw();
+        });
+
+        it('should throw error if DB_PORT is invalid', () => {
+            process.env.DB_PORT = 'invalid';
+
+            expect(() => {
+                proxyquire('../dbConnector', {
+                    'mysql2/promise': { createPool: sinon.stub() },
+                    './redis.Connector': mockRedis
+                });
+            }).to.throw('DB_PORT must be a valid number');
         });
     });
 

@@ -27,10 +27,18 @@ describe('index.js - Main Export', () => {
         expect(index).to.have.property('QuaryCache');
         expect(index).to.have.property('getCacheQuery');
         expect(index).to.have.property('getCacheQueryPagination');
+        expect(index).to.have.property('bulkInsert');
+        expect(index).to.have.property('getCacheQueryWithTimeout');
+        expect(index).to.have.property('closeConnections');
+        expect(index).to.have.property('getPoolStats');
 
         expect(index.QuaryCache).to.be.a('function');
         expect(index.getCacheQuery).to.be.a('function');
         expect(index.getCacheQueryPagination).to.be.a('function');
+        expect(index.bulkInsert).to.be.a('function');
+        expect(index.getCacheQueryWithTimeout).to.be.a('function');
+        expect(index.closeConnections).to.be.a('function');
+        expect(index.getPoolStats).to.be.a('function');
     });
 
     it('should export all Redis functions', () => {
@@ -47,9 +55,9 @@ describe('index.js - Main Export', () => {
         expect(index.getRedisClient).to.be.a('function');
     });
 
-    it('should export exactly 8 functions', () => {
+    it('should export exactly 12 functions', () => {
         const exportedKeys = Object.keys(index);
-        expect(exportedKeys).to.have.lengthOf(8);
+        expect(exportedKeys).to.have.lengthOf(12);
     });
 
     it('should have correct function names', () => {
@@ -57,6 +65,10 @@ describe('index.js - Main Export', () => {
             'QuaryCache',
             'getCacheQuery',
             'getCacheQueryPagination',
+            'bulkInsert',
+            'getCacheQueryWithTimeout',
+            'closeConnections',
+            'getPoolStats',
             'getArrayItem',
             'addArrayItem',
             'delKeyItem',
@@ -75,6 +87,10 @@ describe('index.js - Main Export', () => {
             QuaryCache,
             getCacheQuery,
             getCacheQueryPagination,
+            bulkInsert,
+            getCacheQueryWithTimeout,
+            closeConnections,
+            getPoolStats,
             getArrayItem,
             addArrayItem,
             delKeyItem,
@@ -85,6 +101,10 @@ describe('index.js - Main Export', () => {
         expect(QuaryCache).to.be.a('function');
         expect(getCacheQuery).to.be.a('function');
         expect(getCacheQueryPagination).to.be.a('function');
+        expect(bulkInsert).to.be.a('function');
+        expect(getCacheQueryWithTimeout).to.be.a('function');
+        expect(closeConnections).to.be.a('function');
+        expect(getPoolStats).to.be.a('function');
         expect(getArrayItem).to.be.a('function');
         expect(addArrayItem).to.be.a('function');
         expect(delKeyItem).to.be.a('function');

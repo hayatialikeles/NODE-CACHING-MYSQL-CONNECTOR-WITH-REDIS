@@ -1,8 +1,8 @@
 # NODE CACHING MYSQL CONNECTOR WITH REDIS
 
 [![npm version](https://img.shields.io/npm/v/node-caching-mysql-connector-with-redis.svg)](https://www.npmjs.com/package/node-caching-mysql-connector-with-redis)
-[![Test Coverage](https://img.shields.io/badge/coverage-100%25%20statements-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
-[![Tests](https://img.shields.io/badge/tests-54%20passing-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
+[![Test Coverage](https://img.shields.io/badge/coverage-97.47%25%20statements-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
+[![Tests](https://img.shields.io/badge/tests-73%20passing-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
 [![Backward Compatible](https://img.shields.io/badge/backward%20compatible-100%25-blue.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
 [![TypeScript](https://img.shields.io/badge/TypeScript-definitions%20included-blue.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
@@ -11,18 +11,29 @@ MySQL bağlantılarınızı yönetirken ve sorgu sonuçlarını Redis ile önbel
 
 ## Özellikler
 
+### 🚀 Core Features
 - MySQL sorgu sonuçlarının Redis'te otomatik önbelleğe alınması
 - Sayfalama desteği ile önbellekleme
 - Veri güncellemeleri için önbellek temizleme
 - **TypeScript desteği** - Tam tip tanımlamaları ile IntelliSense
 - **Doğrudan Redis fonksiyon erişimi** - getArrayItem, addArrayItem, vs.
-- Anahtar çakışmalarını önlemek için isim alanı (namespace) desteği
 - Parametreli sorgular ile SQL injection koruması
-- Otomatik yeniden deneme mekanizması (retry mechanism)
-- Yapılandırılabilir connection pool
-- Redis'i devre dışı bırakma seçeneği
 - UUID ve sayısal ID desteği
 - Sorgu seviyesinde veritabanı değiştirme desteği
+
+### ⚡ Production-Grade Features (v2.5.3+)
+- **Automatic Reconnection** - Bağlantı koptuğunda otomatik yeniden bağlanma
+- **Query Timeout Protection** - Uzun süren sorguları timeout ile durdurma
+- **Bulk Operations** - Büyük veri setleri için chunked bulk insert
+- **Graceful Shutdown** - Uygulama kapanırken bağlantıları güvenle kapatma
+- **Pool Monitoring** - Connection pool istatistikleri ile monitoring
+- **Enhanced Config Validation** - Eksik/hatalı konfigürasyonlar için detaylı hata mesajları
+
+### 🔧 Infrastructure
+- Anahtar çakışmalarını önlemek için isim alanı (namespace) desteği
+- Otomatik yeniden deneme mekanizması (exponential backoff)
+- Yapılandırılabilir connection pool
+- Redis'i devre dışı bırakma seçeneği
 
 ## Kurulum
 
@@ -32,12 +43,13 @@ npm install node-caching-mysql-connector-with-redis
 
 ## Test ve Kalite
 
-Kütüphane **%100 test coverage** ile production-ready kalite garantisi sunar:
-- ✅ **%100 Statement Coverage**
-- ✅ **%93.82 Branch Coverage**
+Kütüphane **%97+ test coverage** ile production-ready kalite garantisi sunar:
+- ✅ **%97.47 Statement Coverage**
+- ✅ **%88.11 Branch Coverage**
 - ✅ **%100 Function Coverage**
-- ✅ **54 Kapsamlı Unit Test** (Tümü başarılı)
+- ✅ **73 Kapsamlı Unit Test** (Tümü başarılı)
 - ✅ **%100 Backward Compatible** - v2.4.x kodunuz çalışmaya devam eder
+- ✅ **Production Features** testleri (bulkInsert, timeout, graceful shutdown)
 - ✅ **Configuration Validation** testleri
 - ✅ **Otomatik Retry Mekanizması** testleri
 - ✅ **Error Handling & Edge Cases** testleri
@@ -51,29 +63,51 @@ npm run coverage          # Coverage raporu oluştur (HTML + Terminal)
 
 ## Yapılandırma
 
-Ortam değişkenlerinizi `.env` dosyasında ayarlayın:
+### Hızlı Başlangıç
 
+1. `.env.example` dosyasını kopyalayın:
+```bash
+cp .env.example .env
 ```
-# MySQL Veritabanı Değişkenleri (Zorunlu)
-DB_HOST="localhost"              # Zorunlu
-DB_USERNAME="root"               # Zorunlu
-DB_NAME="veritabani_adiniz"      # Zorunlu
-DB_PASSWORD=""                   # İsteğe bağlı (varsayılan: boş)
-DB_PORT="3306"                   # İsteğe bağlı (varsayılan: 3306)
-TIMEZONE="+00:00"                # İsteğe bağlı (varsayılan: +00:00)
 
-# MySQL Connection Pool Ayarları
-DB_CONNECTION_LIMIT="10"         # İsteğe bağlı (varsayılan: 10)
-DB_QUEUE_LIMIT="0"               # İsteğe bağlı (varsayılan: 0 - sınırsız)
-DB_CONNECT_TIMEOUT="10000"       # İsteğe bağlı (varsayılan: 10000ms)
-DB_MULTIPLE_STATEMENTS="false"   # İsteğe bağlı (varsayılan: false)
+2. `.env` dosyasını düzenleyin:
+
+```env
+# MySQL Veritabanı Değişkenleri (ZORUNLU)
+DB_HOST=localhost              # ✅ Zorunlu
+DB_USERNAME=root               # ✅ Zorunlu
+DB_NAME=veritabani_adiniz      # ✅ Zorunlu
+DB_PASSWORD=                   # İsteğe bağlı (varsayılan: boş)
+DB_PORT=3306                   # İsteğe bağlı (varsayılan: 3306)
+TIMEZONE=+00:00                # İsteğe bağlı (varsayılan: +00:00)
+
+# MySQL Connection Pool Ayarları (İSTEĞE BAĞLI)
+DB_CONNECTION_LIMIT=10         # İsteğe bağlı (varsayılan: 10)
+DB_QUEUE_LIMIT=0               # İsteğe bağlı (varsayılan: 0 - sınırsız)
+DB_CONNECT_TIMEOUT=10000       # İsteğe bağlı (varsayılan: 10000ms)
+DB_MULTIPLE_STATEMENTS=false   # İsteğe bağlı (varsayılan: false)
 
 # Redis Değişkenleri
-REDIS_ENABLED="true"             # İsteğe bağlı (varsayılan: true)
-REDIS_SERVER="localhost"         # Redis etkinse zorunlu
-REDIS_PORT="6379"                # İsteğe bağlı (varsayılan: 6379)
-REDIS_PASSWORD=""                # İsteğe bağlı
-REDIS_VHOST="uygulamam"          # İsteğe bağlı - Redis anahtar öneki
+REDIS_ENABLED=true             # İsteğe bağlı (varsayılan: true)
+REDIS_SERVER=localhost         # ⚠️ Redis etkinse zorunlu
+REDIS_PORT=6379                # İsteğe bağlı (varsayılan: 6379)
+REDIS_PASSWORD=                # İsteğe bağlı
+REDIS_VHOST=uygulamam          # İsteğe bağlı - Redis anahtar öneki
+```
+
+### Konfigürasyon Validasyonu
+
+v2.5.3+ ile eksik veya hatalı konfigürasyonlarda detaylı hata mesajları alırsınız:
+
+```
+❌ Configuration Error - Missing or invalid environment variables:
+
+  • DB_HOST is required (e.g., DB_HOST=localhost)
+  • REDIS_SERVER is required when Redis is enabled (e.g., REDIS_SERVER=localhost).
+    Set REDIS_ENABLED=false to disable Redis.
+
+💡 Tip: Copy .env.example to .env and configure your settings:
+  cp .env.example .env
 ```
 
 ## Kullanım Kılavuzu
@@ -88,6 +122,12 @@ const {
     QuaryCache,
     getCacheQuery,
     getCacheQueryPagination,
+
+    // Production-grade features (v2.5.3+)
+    bulkInsert,
+    getCacheQueryWithTimeout,
+    closeConnections,
+    getPoolStats,
 
     // Redis fonksiyonları
     getArrayItem,
@@ -106,6 +146,12 @@ import {
     getCacheQuery,
     getCacheQueryPagination,
 
+    // Production-grade features (v2.5.3+)
+    bulkInsert,
+    getCacheQueryWithTimeout,
+    closeConnections,
+    getPoolStats,
+
     // Redis fonksiyonları
     getArrayItem,
     addArrayItem,
@@ -115,7 +161,11 @@ import {
 
     // Type definitions
     type QueryResult,
-    type PaginationResult
+    type PaginationResult,
+    type BulkInsertOptions,
+    type BulkInsertResult,
+    type QueryTimeoutOptions,
+    type PoolStats
 } from 'node-caching-mysql-connector-with-redis';
 ```
 
@@ -588,6 +638,180 @@ Artık hem sayısal ID'ler hem de UUID formatındaki ID'ler destekleniyor. Sayfa
 
 8. **Veritabanı Değiştirme Özelliğini Akıllıca Kullanın**: Farklı veritabanlarına erişirken, önbellek anahtarlarınıza veritabanı adını da ekleyerek çakışmaları önleyin (örn. `analytics_db:stats-${today}`).
 
+## Production-Grade Features (v2.5.3+)
+
+### 🚀 Bulk Insert (Toplu Veri Ekleme)
+
+Büyük veri setlerini otomatik chunking ile güvenli şekilde ekleyin:
+
+```javascript
+const { bulkInsert } = require('node-caching-mysql-connector-with-redis');
+
+// Basit kullanım
+const users = [
+    { name: 'Alice', email: 'alice@example.com' },
+    { name: 'Bob', email: 'bob@example.com' },
+    // ... 10,000 kayıt
+];
+
+const result = await bulkInsert('users', users);
+console.log(result);
+// { insertedRows: 10000, chunks: 10 }
+
+// Gelişmiş seçenekler
+await bulkInsert('users', users, {
+    chunkSize: 500,           // Her chunk'ta 500 kayıt (varsayılan: 1000)
+    database: 'analytics_db', // Farklı database
+    resetCacheName: 'users_'  // Cache temizleme
+});
+```
+
+**Özellikler:**
+- ✅ Otomatik chunking (varsayılan: 1000 kayıt/chunk)
+- ✅ Memory-safe (büyük veri setleri için)
+- ✅ Otomatik cache invalidation
+- ✅ Database switching desteği
+- ✅ Retry mechanism ile hata toleransı
+
+---
+
+### ⏱️ Query Timeout Protection
+
+Uzun süren sorguları timeout ile durdurun:
+
+```javascript
+const { getCacheQueryWithTimeout } = require('node-caching-mysql-connector-with-redis');
+
+try {
+    const users = await getCacheQueryWithTimeout(
+        'SELECT * FROM users WHERE status = ?',
+        ['active'],
+        'active-users',
+        {
+            timeout: 5000,           // 5 saniye timeout
+            database: 'analytics_db' // Opsiyonel
+        }
+    );
+} catch (err) {
+    if (err.message.includes('timeout')) {
+        console.error('Query timeout exceeded!');
+    }
+}
+```
+
+**Özellikler:**
+- ✅ Varsayılan timeout: 30 saniye
+- ✅ Cache'den okumada timeout uygulanmaz (instant)
+- ✅ Promise.race ile implementation
+- ✅ Otomatik connection release
+
+---
+
+### 🛑 Graceful Shutdown
+
+Uygulamanızı güvenle kapatın:
+
+```javascript
+const { closeConnections } = require('node-caching-mysql-connector-with-redis');
+
+// Express.js örneği
+const server = app.listen(3000);
+
+process.on('SIGTERM', async () => {
+    console.log('SIGTERM signal received: closing HTTP server');
+
+    // 1. HTTP server'ı kapat
+    server.close(() => {
+        console.log('HTTP server closed');
+    });
+
+    // 2. Database bağlantılarını kapat
+    await closeConnections();
+
+    // 3. Process'i kapat
+    process.exit(0);
+});
+```
+
+**Özellikler:**
+- ✅ Tüm connection pool'u güvenle kapatır
+- ✅ Shutdown sırasında yeni query'leri reddeder
+- ✅ Mevcut query'lerin tamamlanmasını bekler
+- ✅ Memory leak önleme
+
+---
+
+### 📊 Pool Monitoring
+
+Connection pool istatistiklerini takip edin:
+
+```javascript
+const { getPoolStats } = require('node-caching-mysql-connector-with-redis');
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    const stats = getPoolStats();
+
+    res.json({
+        status: 'ok',
+        database: {
+            totalConnections: stats.totalConnections,
+            activeConnections: stats.activeConnections,
+            freeConnections: stats.freeConnections,
+            queuedRequests: stats.queuedRequests
+        }
+    });
+});
+
+// Monitoring loop
+setInterval(() => {
+    const stats = getPoolStats();
+
+    if (stats.queuedRequests > 10) {
+        console.warn('⚠️ High queue depth:', stats.queuedRequests);
+    }
+
+    if (stats.freeConnections === 0) {
+        console.warn('⚠️ No free connections available!');
+    }
+}, 10000);
+```
+
+**Özellikler:**
+- ✅ Real-time pool statistics
+- ✅ Connection leak detection
+- ✅ Performance monitoring
+- ✅ Alert sistemleri için
+
+---
+
+### 🔄 Automatic Reconnection
+
+Bağlantı koptuğunda otomatik yeniden bağlanma:
+
+```javascript
+// Otomatik olarak aktif - yapılandırma gerekmez!
+
+// Bu query bağlantı koptuğunda otomatik retry yapar
+const data = await getCacheQuery(
+    'SELECT * FROM users',
+    [],
+    'all-users'
+);
+```
+
+**Özellikler:**
+- ✅ Exponential backoff (1s, 2s, 4s)
+- ✅ 3 retry denemesi (varsayılan)
+- ✅ Aşağıdaki hatalarda otomatik retry:
+  - `ECONNREFUSED` - Bağlantı reddedildi
+  - `ETIMEDOUT` - Zaman aşımı
+  - `ENOTFOUND` - Host bulunamadı
+  - `PROTOCOL_CONNECTION_LOST` - Bağlantı koptu
+  - `ER_CON_COUNT_ERROR` - Çok fazla bağlantı
+
+---
+
 ## Lisans
 
 MIT
@@ -653,6 +877,19 @@ addArrayItem(...);
 
 ## Versiyon Geçmişi
 
+### v2.5.3 (2025-01-05) - Production-Grade Release 🚀
+- ✅ **Bulk Insert** - Chunked bulk operations (1000 kayıt/chunk)
+- ✅ **Query Timeout Protection** - Timeout ile query koruması (varsayılan: 30s)
+- ✅ **Graceful Shutdown** - `closeConnections()` ile güvenli kapanma
+- ✅ **Pool Monitoring** - `getPoolStats()` ile real-time statistics
+- ✅ **Automatic Reconnection** - PROTOCOL_CONNECTION_LOST retry desteği
+- ✅ **Enhanced Config Validation** - Detaylı hata mesajları ile validation
+- ✅ **.env.example** - Tam konfigürasyon template'i
+- ✅ **73 Kapsamlı Test** - Production features testleri
+- ✅ **%97.47 Statement Coverage**
+- ✅ **%88.11 Branch Coverage**
+- ✅ **%100 Function Coverage**
+
 ### v2.5.2 (2025-01-05)
 - ✅ **TypeScript Desteği** - Tam tip tanımlamaları (.d.ts)
 - ✅ IntelliSense ve auto-completion desteği
@@ -662,16 +899,9 @@ addArrayItem(...);
 - ✅ **%100 Backward Compatible** - v2.4.x kodunuz değişmeden çalışır
 - ✅ **Doğrudan Redis Erişimi** - Redis fonksiyonlarına ana export'tan erişim
 - ✅ **Sorgu seviyesinde veritabanı değiştirme** özelliği
-- ✅ **%100 Statement Coverage** - Production-ready kalite
-- ✅ **%93.82 Branch Coverage**
-- ✅ **54 Kapsamlı Test** (unit + integration + edge cases + backward compatibility)
+- ✅ 54 Kapsamlı Test (unit + integration + edge cases + backward compatibility)
 - ✅ Configuration validation testleri
 - ✅ Error handling & retry mechanism testleri
-- ✅ Backward compatibility testleri
-- ✅ Mock-based testing (proxyquire)
-- ✅ Coverage raporu (nyc - HTML & Terminal)
-- ✅ Export structure testleri
-- 🔧 Error handling iyileştirmeleri
 
 ### v2.4.x
 - Redis'i devre dışı bırakma özelliği
