@@ -458,6 +458,118 @@ declare module 'node-caching-mysql-connector-with-redis' {
      */
     export function configure(config?: CoreConfig): void;
 
+    // ==================== TRANSACTION SUPPORT (v2.7.0+) ====================
+
+    /**
+     * Transaction context object provided to transaction callback.
+     * Contains methods to execute queries within the transaction.
+     */
+    export interface TransactionContext {
+        /**
+         * Executes a query within the transaction.
+         * Cache invalidation is buffered and applied only on successful commit.
+         *
+         * @param sql - SQL query to execute
+         * @param parameters - Query parameters
+         * @param resetCacheName - Optional cache patterns to invalidate on commit
+         * @returns Promise resolving to query result
+         *
+         * @example
+         * ```typescript
+         * await tx.query('INSERT INTO users (name) VALUES (?)', ['John']);
+         * await tx.query('UPDATE orders SET user_id = ?', [123], 'orders_*');
+         * ```
+         */
+        query<T = any>(
+            sql: string,
+            parameters: any[],
+            resetCacheName?: string | string[] | null
+        ): Promise<T>;
+
+        /**
+         * Executes a cached read query within the transaction.
+         * Note: Reads from cache but doesn't guarantee transaction isolation.
+         *
+         * @param sql - SQL query to execute
+         * @param parameters - Query parameters
+         * @param cacheName - Cache key (optional if auto-key enabled)
+         * @returns Promise resolving to query results
+         *
+         * @example
+         * ```typescript
+         * const user = await tx.getCacheQuery('SELECT * FROM users WHERE id = ?', [123], 'user-123');
+         * ```
+         */
+        getCacheQuery<T = any>(
+            sql: string,
+            parameters: any[],
+            cacheName?: string | null
+        ): Promise<T[]>;
+
+        /**
+         * Gets the underlying MySQL connection object.
+         * For advanced use cases requiring direct connection access.
+         *
+         * @returns MySQL connection object
+         */
+        getConnection(): any;
+    }
+
+    /**
+     * Transaction options
+     */
+    export interface TransactionOptions {
+        /** Database name to switch to for the transaction */
+        database?: string | null;
+    }
+
+    /**
+     * Executes queries within a database transaction.
+     * Automatically commits on success or rolls back on error.
+     * Cache invalidation is buffered and applied only on successful commit.
+     *
+     * @param callback - Async function that receives transaction context
+     * @param options - Transaction options
+     * @returns Promise resolving to callback return value
+     * @throws Error if transaction fails or is rolled back
+     *
+     * @example
+     * ```typescript
+     * // Basic transaction
+     * await withTransaction(async (tx) => {
+     *     await tx.query('INSERT INTO users (name) VALUES (?)', ['John']);
+     *     await tx.query('INSERT INTO orders (user_id) VALUES (?)', [123]);
+     *     // Auto commit on success, auto rollback on error
+     * });
+     *
+     * // With database switching
+     * await withTransaction(async (tx) => {
+     *     await tx.query('INSERT INTO logs...', [data]);
+     * }, { database: 'analytics_db' });
+     *
+     * // With return value
+     * const userId = await withTransaction(async (tx) => {
+     *     const result = await tx.query('INSERT INTO users...', [data]);
+     *     return result.insertId;
+     * });
+     *
+     * // Error handling (automatic rollback)
+     * try {
+     *     await withTransaction(async (tx) => {
+     *         await tx.query('INSERT INTO users...', [data]);
+     *         throw new Error('Business logic error');
+     *         // Transaction automatically rolled back
+     *     });
+     * } catch (error) {
+     *     console.error('Transaction failed:', error);
+     * }
+     * ```
+     */
+    export function withTransaction<T = any>(
+        callback: (tx: TransactionContext) => Promise<T>,
+        options?: TransactionOptions
+    ): Promise<T>;
+
     // ==================== BACKWARD COMPATIBILITY ====================
 
     /**
@@ -482,6 +594,7 @@ declare module 'node-caching-mysql-connector-with-redis' {
         getCacheQueryWithTimeout: typeof getCacheQueryWithTimeout;
         closeConnections: typeof closeConnections;
         getPoolStats: typeof getPoolStats;
+        withTransaction: typeof withTransaction;
         enableAutoKey: typeof enableAutoKey;
         enableAutoInvalidation: typeof enableAutoInvalidation;
         configure: typeof configure;

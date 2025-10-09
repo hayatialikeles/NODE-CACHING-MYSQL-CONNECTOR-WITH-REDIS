@@ -1,14 +1,14 @@
 {
   "name": "node-caching-mysql-connector-with-redis",
   "version": "2.6.0",
-  "description": "MySQL caching connector with Redis, auto key generation, auto invalidation, and TypeScript support",
+  "description": "MySQL caching connector with Redis, auto key generation, auto invalidation, transaction support, and TypeScript",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
     "test": "mocha ./test/**/*.js --timeout 60000 --reporter  spec --exit",
     "coverage": "nyc --reporter=text --reporter=html npm test"
   },
-  "author": "Ali Hayati Keleş",
+  "author": "Hayati Ali KELEŞ",
   "license": "MIT",
   "keywords": [
     "mysql",
@@ -24,7 +24,9 @@
     "auto-key",
     "auto-invalidation",
     "smart-cache",
-    "zero-config"
+    "zero-config",
+    "transaction",
+    "transactions"
   ],
   "repository": {
     "type": "git",
@@ -40,7 +42,8 @@
     "dbConnector.js",
     "redis.Connector.js",
     "core/",
-    "readme.md",
+    "docs/",
+    "README.md",
     ".env.example",
     "LICENSE"
   ],

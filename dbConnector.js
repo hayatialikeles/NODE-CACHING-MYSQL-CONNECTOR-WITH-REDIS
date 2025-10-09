@@ -437,5 +437,145 @@ module.exports = {
             freeConnections: con.pool._freeConnections.length,
             queuedRequests: con.pool._connectionQueue.length
         };
+    },
+
+    /**
+     * Executes queries within a database transaction.
+     * Automatically commits on success or rolls back on error.
+     * Cache invalidation is buffered and applied only on successful commit.
+     *
+     * @param {Function} callback - Async function that receives transaction context (tx)
+     * @param {Object} options - Transaction options
+     * @param {string|null} options.database - Database to switch to (optional)
+     * @returns {Promise<any>} - Result of the callback function
+     * @throws {Error} - If transaction fails or is rolled back
+     *
+     * @example
+     * await withTransaction(async (tx) => {
+     *     await tx.query('INSERT INTO users...', [data]);
+     *     await tx.query('UPDATE orders...', [data]);
+     *     // Auto commit on success, auto rollback on error
+     * });
+     */
+    async withTransaction(callback, options = {}) {
+        const { database = null } = options;
+        let connection;
+        const invalidationBuffer = []; // Buffer cache patterns for commit
+
+        try {
+            if (isShuttingDown) {
+                throw new Error('Server is shutting down, cannot process new transactions');
+            }
+
+            connection = await con.getConnection();
+
+            // Switch database if specified
+            if (database) {
+                await connection.query(`USE \`${database}\``);
+            }
+
+            // Begin transaction
+            await connection.beginTransaction();
+
+            // Create transaction context
+            const tx = {
+                /**
+                 * Execute a query within the transaction
+                 * @param {string} sql - SQL query
+                 * @param {Array} parameters - Query parameters
+                 * @param {string|string[]|null} resetCacheName - Cache patterns to invalidate on commit
+                 * @returns {Promise<any>} - Query result
+                 */
+                query: async (sql, parameters, resetCacheName = null) => {
+                    const [data] = await connection.query(sql, parameters);
+
+                    // Buffer cache invalidation patterns
+                    if (REDIS_ENABLED) {
+                        const patterns = determineInvalidationPatterns(sql, resetCacheName);
+                        if (patterns.length > 0) {
+                            invalidationBuffer.push(...patterns);
+                        }
+                    }
+
+                    return data;
+                },
+
+                /**
+                 * Execute a cached read query within the transaction
+                 * Note: Reads from cache, but doesn't guarantee transaction isolation
+                 * @param {string} sql - SQL query
+                 * @param {Array} parameters - Query parameters
+                 * @param {string|null} cacheName - Cache key (optional if auto-key enabled)
+                 * @returns {Promise<any>} - Query result
+                 */
+                getCacheQuery: async (sql, parameters, cacheName = null) => {
+                    // Auto-generate cache key if needed
+                    let finalCacheName = cacheName;
+                    if (!finalCacheName) {
+                        if (isAutoKeyEnabled()) {
+                            finalCacheName = generateCacheKey(sql, parameters);
+                        } else {
+                            throw new Error(
+                                'cacheName is required in transaction. To enable auto key generation, set CORE_AUTO_FEATURES=true'
+                            );
+                        }
+                    }
+
+                    // Check cache first
+                    if (REDIS_ENABLED) {
+                        const cachedData = await getArrayItem(finalCacheName);
+                        if (cachedData.length > 0) {
+                            return cachedData;
+                        }
+                    }
+
+                    // Execute in transaction and cache result
+                    const [data] = await connection.query(sql, parameters);
+                    if (REDIS_ENABLED) {
+                        await addArrayItem(finalCacheName, data);
+                    }
+
+                    return data;
+                },
+
+                /**
+                 * Get the underlying connection object
+                 * For advanced use cases that need direct connection access
+                 * @returns {Object} - MySQL connection object
+                 */
+                getConnection: () => connection
+            };
+
+            // Execute user callback
+            const result = await callback(tx);
+
+            // Commit transaction
+            await connection.commit();
+
+            // Apply buffered cache invalidations on successful commit
+            if (REDIS_ENABLED && invalidationBuffer.length > 0) {
+                // Remove duplicates
+                const uniquePatterns = [...new Set(invalidationBuffer)];
+                await Promise.all(
+                    uniquePatterns.map(pattern => delPrefixKeyItem(pattern))
+                );
+            }
+
+            return result;
+        } catch (error) {
+            // Rollback on error
+            if (connection) {
+                try {
+                    await connection.rollback();
+                } catch (rollbackError) {
+                    console.error('Rollback error:', rollbackError);
+                }
+            }
+            throw error;
+        } finally {
+            if (connection) {
+                connection.release();
+            }
+        }
     }
 };

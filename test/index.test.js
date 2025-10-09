@@ -55,9 +55,9 @@ describe('index.js - Main Export', () => {
         expect(index.getRedisClient).to.be.a('function');
     });
 
-    it('should export exactly 15 functions (v2.6.0)', () => {
+    it('should export exactly 16 functions (v2.7.0)', () => {
         const exportedKeys = Object.keys(index);
-        expect(exportedKeys).to.have.lengthOf(15);
+        expect(exportedKeys).to.have.lengthOf(16);
     });
 
     it('should have correct function names', () => {

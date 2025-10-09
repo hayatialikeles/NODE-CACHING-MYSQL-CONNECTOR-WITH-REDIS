@@ -15,6 +15,9 @@ module.exports = {
     closeConnections: dbConnector.closeConnections,
     getPoolStats: dbConnector.getPoolStats,
 
+    // Transaction support (v2.7.0+)
+    withTransaction: dbConnector.withTransaction,
+
     // Redis functions
     getArrayItem: redisConnector.getArrayItem,
     addArrayItem: redisConnector.addArrayItem,
