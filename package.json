@@ -1,7 +1,7 @@
 {
   "name": "node-caching-mysql-connector-with-redis",
-  "version": "2.5.4",
-  "description": "MySQL caching connector with Redis support and TypeScript definitions",
+  "version": "2.6.0",
+  "description": "MySQL caching connector with Redis, auto key generation, auto invalidation, and TypeScript support",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
@@ -20,7 +20,11 @@
     "connection-pool",
     "query-cache",
     "typescript",
-    "pagination"
+    "pagination",
+    "auto-key",
+    "auto-invalidation",
+    "smart-cache",
+    "zero-config"
   ],
   "repository": {
     "type": "git",
@@ -35,7 +39,9 @@
     "index.d.ts",
     "dbConnector.js",
     "redis.Connector.js",
+    "core/",
     "readme.md",
+    ".env.example",
     "LICENSE"
   ],
   "dependencies": {

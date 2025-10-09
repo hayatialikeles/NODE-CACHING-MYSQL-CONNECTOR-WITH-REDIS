@@ -1,5 +1,7 @@
 const db = require('mysql2/promise');
 const { getArrayItem, addArrayItem, delPrefixKeyItem } = require('./redis.Connector');
+const { generateCacheKey, isAutoKeyEnabled } = require('./core/autoKey');
+const { determineInvalidationPatterns } = require('./core/autoInvalidate');
 require('dotenv').config();
 const env = process.env;
 
@@ -134,6 +136,9 @@ module.exports = {
      * Executes a SQL query and returns the result from the cache or the database.
      * If a resetCacheName is provided, it deletes the cache item before executing the query.
      *
+     * v2.6.0: resetCacheName is now optional. If not provided and CORE_AUTO_INVALIDATION=true,
+     * cache will be auto-invalidated based on the affected table.
+     *
      * @param {string} sql - The SQL query to execute.
      * @param {Array} parameters - The parameters to be passed to the SQL query.
      * @param {string|null} resetCacheName - The name of the cache item to reset (optional).
@@ -150,9 +155,18 @@ module.exports = {
                     await connection.query(`USE \`${db}\``);
                 }
                 const [data] = await connection.query(sql, parameters);
-                if (resetCacheName && REDIS_ENABLED) {
-                    await delPrefixKeyItem(resetCacheName);
+
+                // Determine which cache patterns to invalidate
+                if (REDIS_ENABLED) {
+                    const patterns = determineInvalidationPatterns(sql, resetCacheName);
+
+                    if (patterns.length > 0) {
+                        await Promise.all(
+                            patterns.map(pattern => delPrefixKeyItem(pattern))
+                        );
+                    }
                 }
+
                 return data;
             } catch (err) {
                 throw err;
@@ -168,19 +182,35 @@ module.exports = {
      * If the data is found in the cache, it is returned. Otherwise, the data is fetched from the database,
      * stored in the cache, and then returned.
      *
+     * v2.6.0: cacheName is now optional. If not provided and CORE_AUTO_FEATURES=true,
+     * a cache key will be auto-generated from the SQL query and parameters.
+     *
      * @param {string} sql - The SQL query to be executed.
      * @param {Array} parameters - The parameters to be passed to the SQL query.
-     * @param {string} cacheName - The name of the cache to store the data.
+     * @param {string|null} cacheName - The name of the cache to store the data (optional if auto-key enabled).
      * @param {string|null} database - The database name to switch to (optional).
      * @returns {Promise<Array>} - A promise that resolves to the retrieved data.
      * @throws {Error} - If there is an error while retrieving the data.
      */
-    async getCacheQuery(sql, parameters, cacheName, database = null) {
+    async getCacheQuery(sql, parameters, cacheName = null, database = null) {
+        // Auto-generate cache key if not provided and feature is enabled
+        let finalCacheName = cacheName;
+
+        if (!finalCacheName) {
+            if (isAutoKeyEnabled()) {
+                finalCacheName = generateCacheKey(sql, parameters);
+            } else {
+                throw new Error(
+                    'cacheName is required. To enable auto key generation, set CORE_AUTO_FEATURES=true in .env'
+                );
+            }
+        }
+
         return executeWithRetry(async (db) => {
             let connection;
             try {
                 if (REDIS_ENABLED) {
-                    const cachedData = await getArrayItem(cacheName);
+                    const cachedData = await getArrayItem(finalCacheName);
                     if (cachedData.length > 0) {
                         return cachedData;
                     }
@@ -193,7 +223,7 @@ module.exports = {
                 const [data] = await connection.query(sql, parameters);
 
                 if (REDIS_ENABLED) {
-                    await addArrayItem(cacheName, data);
+                    await addArrayItem(finalCacheName, data);
                 }
 
                 return data;

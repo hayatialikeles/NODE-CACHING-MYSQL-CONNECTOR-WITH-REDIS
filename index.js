@@ -1,5 +1,7 @@
 const dbConnector = require('./dbConnector');
 const redisConnector = require('./redis.Connector');
+const { enableAutoKey } = require('./core/autoKey');
+const { enableAutoInvalidation } = require('./core/autoInvalidate');
 
 module.exports = {
     // Database functions
@@ -18,5 +20,19 @@ module.exports = {
     addArrayItem: redisConnector.addArrayItem,
     delKeyItem: redisConnector.delKeyItem,
     delPrefixKeyItem: redisConnector.delPrefixKeyItem,
-    getRedisClient: redisConnector.getRedisClient
+    getRedisClient: redisConnector.getRedisClient,
+
+    // v2.6.0 Core Features (Opt-in)
+    enableAutoKey,
+    enableAutoInvalidation,
+
+    // All-in-one configuration helper
+    configure(config = {}) {
+        if (config.autoKey !== undefined) {
+            enableAutoKey(config.autoKey);
+        }
+        if (config.autoInvalidation !== undefined) {
+            enableAutoInvalidation(config.autoInvalidation);
+        }
+    }
 };

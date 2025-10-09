@@ -55,9 +55,9 @@ describe('index.js - Main Export', () => {
         expect(index.getRedisClient).to.be.a('function');
     });
 
-    it('should export exactly 12 functions', () => {
+    it('should export exactly 15 functions (v2.6.0)', () => {
         const exportedKeys = Object.keys(index);
-        expect(exportedKeys).to.have.lengthOf(12);
+        expect(exportedKeys).to.have.lengthOf(15);
     });
 
     it('should have correct function names', () => {
@@ -141,6 +141,74 @@ describe('index.js - Main Export', () => {
             expect(dbConnector.QuaryCache).to.equal(QuaryCache);
             expect(dbConnector.getCacheQuery).to.equal(getCacheQuery);
             expect(dbConnector.getArrayItem).to.equal(getArrayItem);
+        });
+    });
+
+    describe('v2.6.0 Core Features', () => {
+        it('should export enableAutoKey function', () => {
+            expect(index).to.have.property('enableAutoKey');
+            expect(index.enableAutoKey).to.be.a('function');
+        });
+
+        it('should export enableAutoInvalidation function', () => {
+            expect(index).to.have.property('enableAutoInvalidation');
+            expect(index.enableAutoInvalidation).to.be.a('function');
+        });
+
+        it('should export configure function', () => {
+            expect(index).to.have.property('configure');
+            expect(index.configure).to.be.a('function');
+        });
+
+        it('should configure auto key via configure()', () => {
+            const { configure } = index;
+
+            // Should not throw
+            expect(() => {
+                configure({ autoKey: true });
+            }).to.not.throw();
+        });
+
+        it('should configure auto invalidation via configure()', () => {
+            const { configure } = index;
+
+            // Should not throw
+            expect(() => {
+                configure({ autoInvalidation: true });
+            }).to.not.throw();
+        });
+
+        it('should configure both features via configure()', () => {
+            const { configure } = index;
+
+            // Should not throw
+            expect(() => {
+                configure({
+                    autoKey: true,
+                    autoInvalidation: true
+                });
+            }).to.not.throw();
+        });
+
+        it('should handle empty config in configure()', () => {
+            const { configure } = index;
+
+            // Should not throw
+            expect(() => {
+                configure({});
+            }).to.not.throw();
+        });
+
+        it('should handle undefined values in configure()', () => {
+            const { configure } = index;
+
+            // Should not throw
+            expect(() => {
+                configure({
+                    autoKey: undefined,
+                    autoInvalidation: undefined
+                });
+            }).to.not.throw();
         });
     });
 });

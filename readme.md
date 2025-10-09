@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/node-caching-mysql-connector-with-redis.svg)](https://www.npmjs.com/package/node-caching-mysql-connector-with-redis)
 [![Test Coverage](https://img.shields.io/badge/coverage-97.47%25%20statements-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
-[![Tests](https://img.shields.io/badge/tests-73%20passing-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
+[![Tests](https://img.shields.io/badge/tests-129%20passing-brightgreen.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
 [![Backward Compatible](https://img.shields.io/badge/backward%20compatible-100%25-blue.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
 [![TypeScript](https://img.shields.io/badge/TypeScript-definitions%20included-blue.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/hayatialikeles/NODE-CACHING-MYSQL-CONNECTOR-WITH-REDIS)
@@ -21,7 +21,13 @@ MySQL bağlantılarınızı yönetirken ve sorgu sonuçlarını Redis ile önbel
 - UUID ve sayısal ID desteği
 - Sorgu seviyesinde veritabanı değiştirme desteği
 
-### ⚡ Production-Grade Features (v2.5.3+)
+### 🧠 Smart Auto Features (v2.6.0+) ✨ NEW
+- **Auto Cache Key Generation** - SQL'den otomatik cache key oluşturma (manuel key gerekmez!)
+- **Auto Invalidation** - INSERT/UPDATE/DELETE'de otomatik cache temizleme
+- **Zero Config** - `CORE_AUTO_FEATURES=true` ile aktif
+- **100% Backward Compatible** - Eski kodunuz aynen çalışır
+
+### ⚡ Production-Grade Features (v2.5.3)
 - **Automatic Reconnection** - Bağlantı koptuğunda otomatik yeniden bağlanma
 - **Query Timeout Protection** - Uzun süren sorguları timeout ile durdurma
 - **Bulk Operations** - Büyük veri setleri için chunked bulk insert
@@ -47,8 +53,9 @@ Kütüphane **%97+ test coverage** ile production-ready kalite garantisi sunar:
 - ✅ **%97.47 Statement Coverage**
 - ✅ **%88.11 Branch Coverage**
 - ✅ **%100 Function Coverage**
-- ✅ **73 Kapsamlı Unit Test** (Tümü başarılı)
+- ✅ **129 Kapsamlı Unit Test** (Tümü başarılı) 🆕
 - ✅ **%100 Backward Compatible** - v2.4.x kodunuz çalışmaya devam eder
+- ✅ **Auto Features** testleri (auto key, auto invalidation) 🆕
 - ✅ **Production Features** testleri (bulkInsert, timeout, graceful shutdown)
 - ✅ **Configuration Validation** testleri
 - ✅ **Otomatik Retry Mekanizması** testleri
@@ -110,6 +117,45 @@ v2.5.3+ ile eksik veya hatalı konfigürasyonlarda detaylı hata mesajları alı
   cp .env.example .env
 ```
 
+## 🚀 Quick Start (v2.6.0)
+
+### Ultra-Simple Setup with Auto Features
+
+```bash
+# 1. Install
+npm install node-caching-mysql-connector-with-redis
+
+# 2. Configure .env
+cp .env.example .env
+
+# 3. Enable smart features
+echo "CORE_AUTO_FEATURES=true" >> .env
+```
+
+### Zero-Config Usage
+
+```javascript
+const { getCacheQuery, QuaryCache } = require('node-caching-mysql-connector-with-redis');
+
+// ✨ Okuma - Cache key otomatik!
+const users = await getCacheQuery(
+    'SELECT * FROM users WHERE id = ?',
+    [123]
+    // cacheName yok - otomatik: "users:id:a7b3c2d1"
+);
+
+// ✨ Yazma - Cache invalidation otomatik!
+await QuaryCache(
+    'INSERT INTO users (name, email) VALUES (?, ?)',
+    ['Ali', 'ali@example.com']
+    // resetCacheName yok - otomatik: users_*, users:* temizlenir
+);
+```
+
+**Sonuç:** Manuel cache key yok, manuel invalidation yok! 🎉
+
+---
+
 ## Kullanım Kılavuzu
 
 ### Import
@@ -128,6 +174,11 @@ const {
     getCacheQueryWithTimeout,
     closeConnections,
     getPoolStats,
+
+    // v2.6.0 Smart Features ✨
+    enableAutoKey,
+    enableAutoInvalidation,
+    configure,
 
     // Redis fonksiyonları
     getArrayItem,

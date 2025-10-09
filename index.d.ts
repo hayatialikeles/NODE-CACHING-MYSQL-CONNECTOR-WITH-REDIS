@@ -71,9 +71,12 @@ declare module 'node-caching-mysql-connector-with-redis' {
      * If the data is found in the cache, it is returned. Otherwise, the data is fetched from the database,
      * stored in the cache, and then returned.
      *
+     * **v2.6.0:** cacheName is now optional when CORE_AUTO_FEATURES=true.
+     * The cache key will be auto-generated from the SQL query and parameters.
+     *
      * @param sql - The SQL query to be executed
      * @param parameters - The parameters to be passed to the SQL query
-     * @param cacheName - The name of the cache to store the data
+     * @param cacheName - The name of the cache to store the data (optional if auto key enabled)
      * @param database - The database name to switch to (optional)
      * @returns A promise that resolves to the retrieved data
      *
@@ -85,17 +88,25 @@ declare module 'node-caching-mysql-connector-with-redis' {
      *   email: string;
      * }
      *
+     * // v2.5.3 style (still works)
      * const users = await getCacheQuery<User>(
      *   "SELECT * FROM users WHERE company_id = ?",
      *   [123],
      *   "users-company-123"
      * );
+     *
+     * // v2.6.0 style (auto key) - Requires CORE_AUTO_FEATURES=true
+     * const users = await getCacheQuery<User>(
+     *   "SELECT * FROM users WHERE company_id = ?",
+     *   [123]
+     * );
+     * // Auto key: "users:company_id:a7b3c2d1"
      * ```
      */
     export function getCacheQuery<T = any>(
         sql: string,
         parameters: any[],
-        cacheName: string,
+        cacheName?: string | null,
         database?: string | null
     ): Promise<T[]>;
 
@@ -358,6 +369,95 @@ declare module 'node-caching-mysql-connector-with-redis' {
      */
     export function getPoolStats(): PoolStats;
 
+    // ==================== v2.6.0 SMART AUTO FEATURES ====================
+
+    /**
+     * Auto key generation configuration
+     */
+    export interface AutoKeyConfig {
+        /** Enable auto key generation */
+        enabled?: boolean;
+    }
+
+    /**
+     * Auto invalidation configuration
+     */
+    export interface AutoInvalidationConfig {
+        /** Enable auto invalidation */
+        enabled?: boolean;
+        /** Table-specific invalidation patterns */
+        tables?: Record<string, string | string[]>;
+    }
+
+    /**
+     * All-in-one configuration interface
+     */
+    export interface CoreConfig {
+        /** Auto key generation config */
+        autoKey?: AutoKeyConfig;
+        /** Auto invalidation config */
+        autoInvalidation?: AutoInvalidationConfig;
+    }
+
+    /**
+     * Enables auto cache key generation feature.
+     * When enabled, cacheName parameter becomes optional in getCacheQuery().
+     *
+     * @param config - Auto key configuration
+     *
+     * @example
+     * ```typescript
+     * enableAutoKey({ enabled: true });
+     *
+     * // Now cacheName is optional
+     * const users = await getCacheQuery('SELECT * FROM users WHERE id = ?', [123]);
+     * ```
+     */
+    export function enableAutoKey(config?: AutoKeyConfig): void;
+
+    /**
+     * Enables auto cache invalidation feature.
+     * When enabled, cache will be automatically cleared on write operations.
+     *
+     * @param config - Auto invalidation configuration
+     *
+     * @example
+     * ```typescript
+     * enableAutoInvalidation({
+     *     enabled: true,
+     *     tables: {
+     *         users: ['users_*', 'profiles_*'],
+     *         orders: ['orders_*']
+     *     }
+     * });
+     *
+     * // Now resetCacheName is optional
+     * await QuaryCache('INSERT INTO users...', [data]);
+     * // Auto-clears: users_*, profiles_*
+     * ```
+     */
+    export function enableAutoInvalidation(config?: AutoInvalidationConfig): void;
+
+    /**
+     * All-in-one configuration helper for v2.6.0 features.
+     *
+     * @param config - Core configuration object
+     *
+     * @example
+     * ```typescript
+     * configure({
+     *     autoKey: { enabled: true },
+     *     autoInvalidation: {
+     *         enabled: true,
+     *         tables: {
+     *             users: ['users_*', 'profiles_*']
+     *         }
+     *     }
+     * });
+     * ```
+     */
+    export function configure(config?: CoreConfig): void;
+
     // ==================== BACKWARD COMPATIBILITY ====================
 
     /**
@@ -382,6 +482,9 @@ declare module 'node-caching-mysql-connector-with-redis' {
         getCacheQueryWithTimeout: typeof getCacheQueryWithTimeout;
         closeConnections: typeof closeConnections;
         getPoolStats: typeof getPoolStats;
+        enableAutoKey: typeof enableAutoKey;
+        enableAutoInvalidation: typeof enableAutoInvalidation;
+        configure: typeof configure;
         getArrayItem: typeof getArrayItem;
         addArrayItem: typeof addArrayItem;
         delKeyItem: typeof delKeyItem;
