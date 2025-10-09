@@ -1,1 +1,5 @@
 test-types.ts
+
+coverage/
+node_modules/.cache/
+*.backup

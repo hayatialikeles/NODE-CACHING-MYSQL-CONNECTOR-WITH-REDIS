@@ -43,7 +43,6 @@
     "redis.Connector.js",
     "core/",
     "docs/",
-    "README.md",
     ".env.example",
     "LICENSE"
   ],
