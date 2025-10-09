@@ -1,7 +1,3 @@
-Sure — here’s the full **English translation** of your MySQL Redis Cache Connector README, preserving tone, formatting, and style exactly as in the original:
-
----
-
 # MySQL Redis Cache Connector
 
 [![npm version](https://img.shields.io/npm/v/node-caching-mysql-connector-with-redis.svg)](https://www.npmjs.com/package/node-caching-mysql-connector-with-redis)
