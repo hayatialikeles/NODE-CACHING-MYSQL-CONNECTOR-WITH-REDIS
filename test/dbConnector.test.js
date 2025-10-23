@@ -306,8 +306,9 @@ describe('dbConnector', () => {
         it('should query DB if cache returns array instead of object', async () => {
             getArrayItemStub.resolves([{ id: 1 }]); // Returns array, not pagination object
 
+            const allData = Array(15).fill({ id: 1 });
             const pageData = Array(10).fill({ id: 1 });
-            mockConnection.query.onFirstCall().resolves([[{ total: 15 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]); // Paginated data
             addArrayItemStub.resolves();
 
@@ -328,7 +329,7 @@ describe('dbConnector', () => {
             const pageData = allData.slice(0, 10);
 
             getArrayItemStub.resolves([]);
-            mockConnection.query.onFirstCall().resolves([[{ total: 50 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]); // Paginated data
             addArrayItemStub.resolves();
 
@@ -382,10 +383,11 @@ describe('dbConnector', () => {
 
         it('should switch database when provided', async () => {
             getArrayItemStub.resolves([]);
+            const allData = [{ id: 1 }, { id: 2 }];
             const pageData = [{ id: 1 }];
 
             mockConnection.query.onCall(0).resolves(); // USE database
-            mockConnection.query.onCall(1).resolves([[{ total: 2 }]]); // COUNT(*) query
+            mockConnection.query.onCall(1).resolves([allData]); // Full data for count
             mockConnection.query.onCall(2).resolves([pageData]); // Paginated data
             addArrayItemStub.resolves();
 
@@ -403,7 +405,7 @@ describe('dbConnector', () => {
 
         it('should calculate pageCount correctly', async () => {
             getArrayItemStub.resolves([]);
-            mockConnection.query.onFirstCall().resolves([[{ total: 25 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([Array(25).fill({ id: 1 })]); // Full data for count
             mockConnection.query.onSecondCall().resolves([Array(10).fill({ id: 1 })]);
             addArrayItemStub.resolves();
 
@@ -426,8 +428,9 @@ describe('dbConnector', () => {
                 './redis.Connector': mockRedis
             });
 
+            const allData = Array(25).fill({ id: 1 });
             const pageData = Array(10).fill({ id: 1 });
-            mockConnection.query.onFirstCall().resolves([[{ total: 25 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
 
             const result = await dbConnector.getCacheQueryPagination(
@@ -449,7 +452,7 @@ describe('dbConnector', () => {
             const allData = Array.from({ length: 30 }, (_, i) => ({ id: i + 1 }));
             const pageData = allData.slice(0, 10);
 
-            mockConnection.query.onFirstCall().resolves([[{ total: 30 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
             addArrayItemStub.resolves();
 
@@ -476,7 +479,7 @@ describe('dbConnector', () => {
             const allData = Array.from({ length: 15 }, (_, i) => ({ id: i + 1 }));
             const pageData = allData.slice(10, 15);
 
-            mockConnection.query.onFirstCall().resolves([[{ total: 15 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
             addArrayItemStub.resolves();
 
@@ -502,7 +505,7 @@ describe('dbConnector', () => {
             const allData = Array.from({ length: 20 }, (_, i) => ({ id: i + 1 }));
             const pageData = allData.slice(0, 5);
 
-            mockConnection.query.onFirstCall().resolves([[{ total: 20 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
             addArrayItemStub.resolves();
 
@@ -529,7 +532,7 @@ describe('dbConnector', () => {
             const allData = Array.from({ length: 50 }, (_, i) => ({ id: i + 1, name: `User${i}` }));
             const pageData = allData.slice(20, 30);
 
-            mockConnection.query.onFirstCall().resolves([[{ total: 50 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
             addArrayItemStub.resolves();
 
@@ -555,7 +558,7 @@ describe('dbConnector', () => {
             const allData = Array.from({ length: 30 }, (_, i) => ({ id: i + 1 }));
             const pageData = allData.slice(0, 10);
 
-            mockConnection.query.onFirstCall().resolves([[{ total: 30 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
             addArrayItemStub.resolves();
 
@@ -579,7 +582,7 @@ describe('dbConnector', () => {
             const allData = Array.from({ length: 25 }, (_, i) => ({ id: i + 1 }));
             const pageData = allData.slice(0, 5);
 
-            mockConnection.query.onFirstCall().resolves([[{ total: 25 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
             addArrayItemStub.resolves();
 
@@ -602,7 +605,7 @@ describe('dbConnector', () => {
             const allData = Array.from({ length: 20 }, (_, i) => ({ id: i + 1 }));
             const pageData = allData.slice(0, 10);
 
-            mockConnection.query.onFirstCall().resolves([[{ total: 20 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
             addArrayItemStub.resolves();
 
@@ -625,7 +628,7 @@ describe('dbConnector', () => {
             const allData = Array.from({ length: 30 }, (_, i) => ({ id: i + 1 }));
             const pageData = allData.slice(0, 10);
 
-            mockConnection.query.onFirstCall().resolves([[{ total: 30 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
             addArrayItemStub.resolves();
 
@@ -648,7 +651,7 @@ describe('dbConnector', () => {
             const allData = Array.from({ length: 40 }, (_, i) => ({ id: i + 1 }));
             const pageData = allData.slice(0, 10);
 
-            mockConnection.query.onFirstCall().resolves([[{ total: 40 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
             addArrayItemStub.resolves();
 
@@ -671,7 +674,7 @@ describe('dbConnector', () => {
             const allData = Array.from({ length: 50 }, (_, i) => ({ id: i + 1 }));
             const pageData = allData.slice(20, 30);
 
-            mockConnection.query.onFirstCall().resolves([[{ total: 50 }]]); // COUNT(*) query
+            mockConnection.query.onFirstCall().resolves([allData]); // Full data for count
             mockConnection.query.onSecondCall().resolves([pageData]);
             addArrayItemStub.resolves();
 
