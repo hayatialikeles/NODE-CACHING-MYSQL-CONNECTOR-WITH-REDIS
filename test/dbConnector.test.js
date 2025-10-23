@@ -446,6 +446,112 @@ describe('dbConnector', () => {
             expect(getArrayItemStub.called).to.be.false;
             expect(addArrayItemStub.called).to.be.false;
         });
+
+        it('should handle SQL with trailing semicolon', async () => {
+            getArrayItemStub.resolves([]);
+            const allData = Array.from({ length: 30 }, (_, i) => ({ id: i + 1 }));
+            const pageData = allData.slice(0, 10);
+
+            mockConnection.query.onFirstCall().resolves([allData]);
+            mockConnection.query.onSecondCall().resolves([pageData]);
+            addArrayItemStub.resolves();
+
+            const result = await dbConnector.getCacheQueryPagination(
+                'SELECT * FROM users WHERE status = "active";',  // SQL with semicolon
+                [],
+                'users-page-0',
+                0,
+                10
+            );
+
+            expect(result.totalCount).to.equal(30);
+            expect(result.pageCount).to.equal(3);
+            expect(result.detail).to.deep.equal(pageData);
+
+            // Verify that the paginated SQL doesn't have syntax errors
+            const secondCallArgs = mockConnection.query.secondCall.args[0];
+            expect(secondCallArgs).to.not.include(';;'); // Should not have double semicolons
+            expect(secondCallArgs).to.include('LIMIT');
+        });
+
+        it('should handle SQL with multiple trailing semicolons', async () => {
+            getArrayItemStub.resolves([]);
+            const allData = Array.from({ length: 15 }, (_, i) => ({ id: i + 1 }));
+            const pageData = allData.slice(10, 15);
+
+            mockConnection.query.onFirstCall().resolves([allData]);
+            mockConnection.query.onSecondCall().resolves([pageData]);
+            addArrayItemStub.resolves();
+
+            const result = await dbConnector.getCacheQueryPagination(
+                'SELECT * FROM orders;;;',  // Multiple semicolons
+                [],
+                'orders-page-1',
+                1,
+                10
+            );
+
+            expect(result.totalCount).to.equal(15);
+            expect(result.pageCount).to.equal(2);
+
+            // Verify clean SQL
+            const secondCallArgs = mockConnection.query.secondCall.args[0];
+            expect(secondCallArgs).to.match(/^SELECT.*LIMIT \d+, \d+$/); // Should end with LIMIT
+            expect(secondCallArgs).to.not.match(/;/); // Should not have semicolons
+        });
+
+        it('should handle SQL with trailing semicolon and whitespace', async () => {
+            getArrayItemStub.resolves([]);
+            const allData = Array.from({ length: 20 }, (_, i) => ({ id: i + 1 }));
+            const pageData = allData.slice(0, 5);
+
+            mockConnection.query.onFirstCall().resolves([allData]);
+            mockConnection.query.onSecondCall().resolves([pageData]);
+            addArrayItemStub.resolves();
+
+            const result = await dbConnector.getCacheQueryPagination(
+                'SELECT * FROM products;  \n  ',  // Semicolon with trailing whitespace
+                [],
+                'products-page-0',
+                0,
+                5
+            );
+
+            expect(result.totalCount).to.equal(20);
+            expect(result.pageCount).to.equal(4);
+            expect(result.detail.length).to.equal(5);
+
+            // Verify clean SQL
+            const secondCallArgs = mockConnection.query.secondCall.args[0];
+            expect(secondCallArgs).to.include('LIMIT 0, 5');
+            expect(secondCallArgs).to.not.match(/;\s*$/); // Should not end with semicolon
+        });
+
+        it('should handle complex SQL with ORDER BY and semicolon', async () => {
+            getArrayItemStub.resolves([]);
+            const allData = Array.from({ length: 50 }, (_, i) => ({ id: i + 1, name: `User${i}` }));
+            const pageData = allData.slice(20, 30);
+
+            mockConnection.query.onFirstCall().resolves([allData]);
+            mockConnection.query.onSecondCall().resolves([pageData]);
+            addArrayItemStub.resolves();
+
+            const result = await dbConnector.getCacheQueryPagination(
+                'SELECT * FROM users WHERE status = "active" ORDER BY created_at DESC;',
+                [],
+                'users-sorted-page-2',
+                2,
+                10
+            );
+
+            expect(result.totalCount).to.equal(50);
+            expect(result.pageCount).to.equal(5);
+
+            // Verify SQL structure: ORDER BY comes before LIMIT
+            const secondCallArgs = mockConnection.query.secondCall.args[0];
+            expect(secondCallArgs).to.match(/ORDER BY.*LIMIT/); // ORDER BY before LIMIT
+            expect(secondCallArgs).to.include('LIMIT 20, 10');
+        });
     });
 
     describe('Retry Mechanism', () => {

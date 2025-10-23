@@ -245,6 +245,9 @@ module.exports = {
      * If the data is available in cache, it is returned directly. Otherwise, the data is fetched from the database,
      * paginated, and then stored in the cache for future use.
      *
+     * Uses server-side pagination (SQL LIMIT) for better performance.
+     * Handles semicolons at the end of SQL queries properly.
+     *
      * @param {string} sql - The SQL query to execute.
      * @param {Array} parameters - The parameters to be used in the SQL query.
      * @param {string} cacheName - The name of the cache to store the data.
@@ -275,23 +278,26 @@ module.exports = {
                     await connection.query(`USE \`${db}\``);
                 }
 
-            // Get total count with original query
-            const [allData] = await connection.query(sql, parameters);
-            const totalCount = allData.length;
+                // Get total count with original query
+                const [allData] = await connection.query(sql, parameters);
+                const totalCount = allData.length;
 
-            // Modify SQL for pagination
-            const offset = page * pageSize;
-            const paginatedSql = `${sql} LIMIT ${offset}, ${pageSize}`;
+                // Prepare SQL for pagination: remove trailing semicolon(s) and whitespace
+                let cleanSql = sql.trim().replace(/;+\s*$/, '');
 
-            // Get paginated data
-            const [data] = await connection.query(paginatedSql, parameters);
+                // Add LIMIT clause for pagination
+                const offset = page * pageSize;
+                const paginatedSql = `${cleanSql} LIMIT ${offset}, ${pageSize}`;
 
-            // Prepare result
-            const result = {
-                totalCount,
-                pageCount: Math.ceil(totalCount / pageSize),
-                detail: data
-            };
+                // Get paginated data
+                const [data] = await connection.query(paginatedSql, parameters);
+
+                // Prepare result
+                const result = {
+                    totalCount,
+                    pageCount: Math.ceil(totalCount / pageSize),
+                    detail: data
+                };
 
                 if (REDIS_ENABLED) {
                     await addArrayItem(cacheName, result);
