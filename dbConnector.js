@@ -75,15 +75,19 @@ function validateConfiguration() {
 validateConfiguration();
 
 // Connection pool configuration with auto-reconnection
+// Backward compatible defaults matching legacy version
 const poolConfig = {
     host: env.DB_HOST,
     user: env.DB_USERNAME,
     password: env.DB_PASSWORD || '',
     database: env.DB_NAME,
-    connectionLimit: parseInt(env.DB_CONNECTION_LIMIT) || 10,
-    queueLimit: parseInt(env.DB_QUEUE_LIMIT) || 0,
+    connectionLimit: parseInt(env.DB_CONNECTION_LIMIT) || 20000,
+    queueLimit: parseInt(env.DB_QUEUE_LIMIT) || 20,
+    acquireTimeout: parseInt(env.DB_ACQUIRE_TIMEOUT) || 1000000,
     connectTimeout: parseInt(env.DB_CONNECT_TIMEOUT) || 10000,
-    multipleStatements: env.DB_MULTIPLE_STATEMENTS === 'true' || false,
+    multipleStatements: env.DB_MULTIPLE_STATEMENTS !== undefined
+        ? env.DB_MULTIPLE_STATEMENTS === 'true'
+        : true,
     port: parseInt(env.DB_PORT) || 3306,
     timezone: env.TIMEZONE || '+00:00',
     waitForConnections: true,
