@@ -276,8 +276,17 @@ module.exports = {
                     throw new Error('Page size must be greater than 0');
                 }
 
+                // Validate and normalize page parameter
+                let validPage = parseInt(page);
+                if (isNaN(validPage) || validPage < 0) {
+                    validPage = 0;
+                }
+
+                // Create unique cache key including page and pageSize
+                const uniqueCacheKey = `${cacheName}:page${validPage}:size${pageSize}`;
+
                 if (REDIS_ENABLED) {
-                    const cachedData = await getArrayItem(cacheName);
+                    const cachedData = await getArrayItem(uniqueCacheKey);
                     if (typeof cachedData === 'object' && !Array.isArray(cachedData) && cachedData !== null) {
                         return cachedData;
                     }
@@ -288,25 +297,19 @@ module.exports = {
                     await connection.query(`USE \`${db}\``);
                 }
 
-                // Get total count with original query
-                const [allData] = await connection.query(sql, parameters);
-                const totalCount = allData.length;
-
-                // Validate and normalize page parameter
-                let validPage = parseInt(page);
-                if (isNaN(validPage) || validPage < 0) {
-                    validPage = 0;
-                }
-
-                // Prepare SQL for pagination: remove trailing semicolon(s) and whitespace
+                // Prepare SQL: remove trailing semicolon(s) and whitespace
                 let cleanSql = sql.trim().replace(/;+\s*$/, '');
 
-                // Add LIMIT clause for pagination
-                const offset = validPage * pageSize;
-                const paginatedSql = `${cleanSql} LIMIT ${offset}, ${pageSize}`;
+                // Get total count using COUNT(*) instead of loading all rows
+                const countSql = `SELECT COUNT(*) as total FROM (${cleanSql}) as countQuery`;
+                const [[{ total: totalCount }]] = await connection.query(countSql, parameters);
 
-                // Get paginated data
-                const [data] = await connection.query(paginatedSql, parameters);
+                // Calculate offset for pagination
+                const offset = validPage * pageSize;
+
+                // Get paginated data with parameterized LIMIT to prevent SQL injection
+                const paginatedSql = `${cleanSql} LIMIT ?, ?`;
+                const [data] = await connection.query(paginatedSql, [...parameters, offset, pageSize]);
 
                 // Prepare result
                 const result = {
@@ -316,7 +319,7 @@ module.exports = {
                 };
 
                 if (REDIS_ENABLED) {
-                    await addArrayItem(cacheName, result);
+                    await addArrayItem(uniqueCacheKey, result);
                 }
 
                 return result;
