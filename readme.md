@@ -273,16 +273,28 @@ CORE_AUTO_FEATURES=true
 
 ```bash
 DB_PORT=3306
-DB_CONNECTION_LIMIT=10
-DB_QUEUE_LIMIT=0
-DB_CONNECT_TIMEOUT=10000
+DB_CONNECTION_LIMIT=10              # 10-50 recommended, 50-100 for high traffic (1000+ concurrent users)
+DB_QUEUE_LIMIT=0                    # 0 = unlimited queue (recommended)
+DB_CONNECT_TIMEOUT=10000            # 10 seconds
 TIMEZONE=+00:00
 
 REDIS_PASSWORD=secret
 REDIS_VHOST=my_namespace
 REDIS_ENABLED=true
 
-DB_MULTIPLE_STATEMENTS=false
+DB_MULTIPLE_STATEMENTS=true         # Default: true (backward compatible)
+```
+
+#### High Traffic Configuration (1000+ Concurrent Users)
+
+For applications handling 1000+ concurrent users:
+
+```bash
+DB_CONNECTION_LIMIT=50              # Scale based on your server capacity
+DB_QUEUE_LIMIT=0                    # Unlimited queue prevents connection failures
+DB_CONNECT_TIMEOUT=10000
+REDIS_ENABLED=true                  # Highly recommended for caching
+CORE_AUTO_FEATURES=true             # Enable smart caching
 ```
 
 ### Programmatic Configuration
@@ -309,9 +321,36 @@ configure({
 
 ## 🔄 Migration & Compatibility
 
-### ✅ 100% Backward Compatible
+### ⚠️ IMPORTANT: v2.6.2 Pool Configuration Changes
 
-Your existing code works out of the box:
+**v2.6.2 introduces optimized pool defaults with improved connection management:**
+
+| Setting | Old Version | v2.6.2 Default | Recommended for Production |
+|---------|-------------|----------------|---------------------------|
+| `connectionLimit` | 20000 (buggy) | **10** | **50-100** for high traffic |
+| `queueLimit` | 20 (too low) | **0** (unlimited) | **0** (unlimited) |
+| `multipleStatements` | true | **true** | **true** |
+
+**🚨 Critical for High Traffic Applications:**
+
+If you're handling **1000+ concurrent users**, the default `connectionLimit: 10` **WILL cause performance issues**.
+
+**Recommended Configuration:**
+```bash
+# .env
+DB_CONNECTION_LIMIT=50      # Minimum for 1000+ users
+DB_QUEUE_LIMIT=0            # Unlimited queue (recommended)
+DB_CONNECT_TIMEOUT=10000
+REDIS_ENABLED=true          # Cache reduces DB load
+```
+
+**Why?** With 10 connections, only 10 users get immediate response. The remaining 990 users **wait in queue**, causing timeouts and slow response times.
+
+---
+
+### ✅ 100% API Backward Compatible
+
+Your existing code works without any changes:
 
 ```javascript
 await getCacheQuery('SELECT * FROM users', [], 'my-custom-key');

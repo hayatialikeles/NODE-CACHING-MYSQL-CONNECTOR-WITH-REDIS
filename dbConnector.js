@@ -75,17 +75,16 @@ function validateConfiguration() {
 validateConfiguration();
 
 // Connection pool configuration with auto-reconnection
-// Backward compatible defaults matching legacy version
+// Optimized defaults for production use
 const poolConfig = {
     host: env.DB_HOST,
     user: env.DB_USERNAME,
     password: env.DB_PASSWORD || '',
     database: env.DB_NAME,
-    connectionLimit: parseInt(env.DB_CONNECTION_LIMIT) || 20000,
-    queueLimit: parseInt(env.DB_QUEUE_LIMIT) || 20,
-    acquireTimeout: parseInt(env.DB_ACQUIRE_TIMEOUT) || 1000000,
-    connectTimeout: parseInt(env.DB_CONNECT_TIMEOUT) || 10000,
-    multipleStatements: env.DB_MULTIPLE_STATEMENTS !== undefined
+    connectionLimit: parseInt(env.DB_CONNECTION_LIMIT) || 500,       // High traffic default (adjust based on server capacity)
+    queueLimit: parseInt(env.DB_QUEUE_LIMIT) || 0,                   // 0 = unlimited queue (wait when pool is full)
+    connectTimeout: parseInt(env.DB_CONNECT_TIMEOUT) || 10000,       // 10 seconds timeout for initial connection
+    multipleStatements: env.DB_MULTIPLE_STATEMENTS !== undefined     // Backward compatible: default true
         ? env.DB_MULTIPLE_STATEMENTS === 'true'
         : true,
     port: parseInt(env.DB_PORT) || 3306,
