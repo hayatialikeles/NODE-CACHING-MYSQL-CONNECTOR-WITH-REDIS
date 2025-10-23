@@ -273,7 +273,7 @@ CORE_AUTO_FEATURES=true
 
 ```bash
 DB_PORT=3306
-DB_CONNECTION_LIMIT=10              # 10-50 recommended, 50-100 for high traffic (1000+ concurrent users)
+DB_CONNECTION_LIMIT=500             # Default: 500 (optimized for high traffic)
 DB_QUEUE_LIMIT=0                    # 0 = unlimited queue (recommended)
 DB_CONNECT_TIMEOUT=10000            # 10 seconds
 TIMEZONE=+00:00
@@ -285,14 +285,20 @@ REDIS_ENABLED=true
 DB_MULTIPLE_STATEMENTS=true         # Default: true (backward compatible)
 ```
 
-#### High Traffic Configuration (1000+ Concurrent Users)
+#### Scaling Based on Traffic
 
-For applications handling 1000+ concurrent users:
+Adjust `DB_CONNECTION_LIMIT` based on your application load:
 
 ```bash
-DB_CONNECTION_LIMIT=50              # Scale based on your server capacity
+# Low Traffic (< 100 concurrent users)
+DB_CONNECTION_LIMIT=50
+
+# Medium Traffic (100-1000 concurrent users)
+DB_CONNECTION_LIMIT=200
+
+# High Traffic (1000+ concurrent users) - DEFAULT
+DB_CONNECTION_LIMIT=500             # Default value
 DB_QUEUE_LIMIT=0                    # Unlimited queue prevents connection failures
-DB_CONNECT_TIMEOUT=10000
 REDIS_ENABLED=true                  # Highly recommended for caching
 CORE_AUTO_FEATURES=true             # Enable smart caching
 ```
@@ -323,28 +329,30 @@ configure({
 
 ### ⚠️ IMPORTANT: v2.6.2 Pool Configuration Changes
 
-**v2.6.2 introduces optimized pool defaults with improved connection management:**
+**v2.6.2 introduces optimized pool defaults for high-traffic production environments:**
 
-| Setting | Old Version | v2.6.2 Default | Recommended for Production |
-|---------|-------------|----------------|---------------------------|
-| `connectionLimit` | 20000 (buggy) | **10** | **50-100** for high traffic |
-| `queueLimit` | 20 (too low) | **0** (unlimited) | **0** (unlimited) |
-| `multipleStatements` | true | **true** | **true** |
+| Setting | Old Version | v2.6.2 Default | Notes |
+|---------|-------------|----------------|-------|
+| `connectionLimit` | 20000 (buggy) | **500** | Optimized for 1000+ concurrent users |
+| `queueLimit` | 20 (too low) | **0** (unlimited) | Prevents connection failures |
+| `multipleStatements` | true | **true** | Backward compatible |
 
-**🚨 Critical for High Traffic Applications:**
+**✅ Default Configuration is Production-Ready:**
 
-If you're handling **1000+ concurrent users**, the default `connectionLimit: 10` **WILL cause performance issues**.
+v2.6.2 defaults to `connectionLimit: 500`, which is optimized for **high-traffic applications** handling 1000+ concurrent users.
 
-**Recommended Configuration:**
+**Scaling Down (Optional):**
+
+If you have lower traffic, you can reduce the limit:
 ```bash
-# .env
-DB_CONNECTION_LIMIT=50      # Minimum for 1000+ users
-DB_QUEUE_LIMIT=0            # Unlimited queue (recommended)
-DB_CONNECT_TIMEOUT=10000
-REDIS_ENABLED=true          # Cache reduces DB load
+# .env - For low traffic applications (< 100 users)
+DB_CONNECTION_LIMIT=50
+
+# For medium traffic (100-1000 users)
+DB_CONNECTION_LIMIT=200
 ```
 
-**Why?** With 10 connections, only 10 users get immediate response. The remaining 990 users **wait in queue**, causing timeouts and slow response times.
+**Note:** The unlimited queue (`queueLimit: 0`) ensures requests wait for available connections instead of failing, providing better reliability under load.
 
 ---
 
