@@ -282,11 +282,17 @@ module.exports = {
                 const [allData] = await connection.query(sql, parameters);
                 const totalCount = allData.length;
 
+                // Validate and normalize page parameter
+                let validPage = parseInt(page);
+                if (isNaN(validPage) || validPage < 0) {
+                    validPage = 0;
+                }
+
                 // Prepare SQL for pagination: remove trailing semicolon(s) and whitespace
                 let cleanSql = sql.trim().replace(/;+\s*$/, '');
 
                 // Add LIMIT clause for pagination
-                const offset = page * pageSize;
+                const offset = validPage * pageSize;
                 const paginatedSql = `${cleanSql} LIMIT ${offset}, ${pageSize}`;
 
                 // Get paginated data

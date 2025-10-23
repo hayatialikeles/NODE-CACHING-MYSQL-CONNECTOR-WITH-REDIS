@@ -552,6 +552,138 @@ describe('dbConnector', () => {
             expect(secondCallArgs).to.match(/ORDER BY.*LIMIT/); // ORDER BY before LIMIT
             expect(secondCallArgs).to.include('LIMIT 20, 10');
         });
+
+        it('should handle undefined page parameter (default to 0)', async () => {
+            getArrayItemStub.resolves([]);
+            const allData = Array.from({ length: 30 }, (_, i) => ({ id: i + 1 }));
+            const pageData = allData.slice(0, 10);
+
+            mockConnection.query.onFirstCall().resolves([allData]);
+            mockConnection.query.onSecondCall().resolves([pageData]);
+            addArrayItemStub.resolves();
+
+            const result = await dbConnector.getCacheQueryPagination(
+                'SELECT * FROM users',
+                [],
+                'users-page',
+                undefined,
+                10
+            );
+
+            expect(result.totalCount).to.equal(30);
+            const secondCallArgs = mockConnection.query.secondCall.args[0];
+            expect(secondCallArgs).to.include('LIMIT 0, 10');
+        });
+
+        it('should handle null page parameter (default to 0)', async () => {
+            getArrayItemStub.resolves([]);
+            const allData = Array.from({ length: 25 }, (_, i) => ({ id: i + 1 }));
+            const pageData = allData.slice(0, 5);
+
+            mockConnection.query.onFirstCall().resolves([allData]);
+            mockConnection.query.onSecondCall().resolves([pageData]);
+            addArrayItemStub.resolves();
+
+            const result = await dbConnector.getCacheQueryPagination(
+                'SELECT * FROM products',
+                [],
+                'products-page',
+                null,
+                5
+            );
+
+            expect(result.totalCount).to.equal(25);
+            const secondCallArgs = mockConnection.query.secondCall.args[0];
+            expect(secondCallArgs).to.include('LIMIT 0, 5');
+        });
+
+        it('should handle NaN page parameter (default to 0)', async () => {
+            getArrayItemStub.resolves([]);
+            const allData = Array.from({ length: 20 }, (_, i) => ({ id: i + 1 }));
+            const pageData = allData.slice(0, 10);
+
+            mockConnection.query.onFirstCall().resolves([allData]);
+            mockConnection.query.onSecondCall().resolves([pageData]);
+            addArrayItemStub.resolves();
+
+            const result = await dbConnector.getCacheQueryPagination(
+                'SELECT * FROM orders',
+                [],
+                'orders-page',
+                NaN,
+                10
+            );
+
+            expect(result.totalCount).to.equal(20);
+            const secondCallArgs = mockConnection.query.secondCall.args[0];
+            expect(secondCallArgs).to.include('LIMIT 0, 10');
+        });
+
+        it('should handle invalid string page parameter (default to 0)', async () => {
+            getArrayItemStub.resolves([]);
+            const allData = Array.from({ length: 30 }, (_, i) => ({ id: i + 1 }));
+            const pageData = allData.slice(0, 10);
+
+            mockConnection.query.onFirstCall().resolves([allData]);
+            mockConnection.query.onSecondCall().resolves([pageData]);
+            addArrayItemStub.resolves();
+
+            const result = await dbConnector.getCacheQueryPagination(
+                'SELECT * FROM users',
+                [],
+                'users-page',
+                'invalid',
+                10
+            );
+
+            expect(result.totalCount).to.equal(30);
+            const secondCallArgs = mockConnection.query.secondCall.args[0];
+            expect(secondCallArgs).to.include('LIMIT 0, 10');
+        });
+
+        it('should handle negative page parameter (default to 0)', async () => {
+            getArrayItemStub.resolves([]);
+            const allData = Array.from({ length: 40 }, (_, i) => ({ id: i + 1 }));
+            const pageData = allData.slice(0, 10);
+
+            mockConnection.query.onFirstCall().resolves([allData]);
+            mockConnection.query.onSecondCall().resolves([pageData]);
+            addArrayItemStub.resolves();
+
+            const result = await dbConnector.getCacheQueryPagination(
+                'SELECT * FROM products',
+                [],
+                'products-page',
+                -5,
+                10
+            );
+
+            expect(result.totalCount).to.equal(40);
+            const secondCallArgs = mockConnection.query.secondCall.args[0];
+            expect(secondCallArgs).to.include('LIMIT 0, 10');
+        });
+
+        it('should handle valid string page parameter', async () => {
+            getArrayItemStub.resolves([]);
+            const allData = Array.from({ length: 50 }, (_, i) => ({ id: i + 1 }));
+            const pageData = allData.slice(20, 30);
+
+            mockConnection.query.onFirstCall().resolves([allData]);
+            mockConnection.query.onSecondCall().resolves([pageData]);
+            addArrayItemStub.resolves();
+
+            const result = await dbConnector.getCacheQueryPagination(
+                'SELECT * FROM orders',
+                [],
+                'orders-page-2',
+                '2',
+                10
+            );
+
+            expect(result.totalCount).to.equal(50);
+            const secondCallArgs = mockConnection.query.secondCall.args[0];
+            expect(secondCallArgs).to.include('LIMIT 20, 10');
+        });
     });
 
     describe('Retry Mechanism', () => {
