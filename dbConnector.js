@@ -81,8 +81,10 @@ const poolConfig = {
     user: env.DB_USERNAME,
     password: env.DB_PASSWORD || '',
     database: env.DB_NAME,
-    connectionLimit: parseInt(env.DB_CONNECTION_LIMIT) || 500,       // High traffic default (adjust based on server capacity)
+    connectionLimit: parseInt(env.DB_CONNECTION_LIMIT) || 151,       // High traffic default (adjust based on server capacity)
     queueLimit: parseInt(env.DB_QUEUE_LIMIT) || 0,                   // 0 = unlimited queue (wait when pool is full)
+    maxIdle: parseInt(env.DB_MAX_IDLE) || 10,                        // Maximum idle connections (MySQL2 recommended)
+    idleTimeout: parseInt(env.DB_IDLE_TIMEOUT) || 60000,             // Idle connection timeout in ms (60 seconds)
     connectTimeout: parseInt(env.DB_CONNECT_TIMEOUT) || 10000,       // 10 seconds timeout for initial connection
     multipleStatements: env.DB_MULTIPLE_STATEMENTS !== undefined     // Backward compatible: default true
         ? env.DB_MULTIPLE_STATEMENTS === 'true'
