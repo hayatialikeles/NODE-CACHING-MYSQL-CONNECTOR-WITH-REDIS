@@ -204,6 +204,54 @@ describe('Production Features (v2.5.3+)', () => {
 
             expect(mockConnection.query.firstCall.args[0]).to.include('USE `analytics_db`');
         });
+
+        it('should cleanup timeout timer on successful query (memory leak prevention)', async function() {
+            this.timeout(10000);
+
+            const clearTimeoutSpy = sinon.spy(global, 'clearTimeout');
+
+            getArrayItemStub.resolves([]);
+            mockConnection.query.resolves([[{ id: 1, name: 'Test' }]]);
+
+            try {
+                await dbConnector.getCacheQueryWithTimeout(
+                    'SELECT * FROM users',
+                    [],
+                    'users-cache',
+                    { timeout: 5000 }
+                );
+
+                // Verify clearTimeout was called (timeout cleaned up)
+                expect(clearTimeoutSpy.called).to.be.true;
+            } finally {
+                clearTimeoutSpy.restore();
+            }
+        });
+
+        it('should cleanup timeout timer on query error (memory leak prevention)', async function() {
+            this.timeout(10000);
+
+            const clearTimeoutSpy = sinon.spy(global, 'clearTimeout');
+
+            getArrayItemStub.resolves([]);
+            mockConnection.query.rejects(new Error('Query failed'));
+
+            try {
+                await dbConnector.getCacheQueryWithTimeout(
+                    'SELECT * FROM users',
+                    [],
+                    'users-cache',
+                    { timeout: 5000 }
+                );
+                expect.fail('Should have thrown error');
+            } catch (err) {
+                expect(err.message).to.equal('Query failed');
+                // Verify clearTimeout was called even on error
+                expect(clearTimeoutSpy.called).to.be.true;
+            } finally {
+                clearTimeoutSpy.restore();
+            }
+        });
     });
 
     describe('closeConnections', () => {

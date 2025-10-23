@@ -285,14 +285,18 @@ describe('redis.Connector', () => {
 
         it('should handle Redis client error events', () => {
             const consoleErrorStub = sinon.stub(console, 'error');
+            const consoleLogStub = sinon.stub(console, 'log');
             const testError = new Error('Redis connection lost');
 
-            // Trigger the error event handler
-            const errorHandler = mockRedisClient.on.getCall(0).args[1];
+            // Find the error event handler (first 'error' event registered)
+            const errorEventCall = mockRedisClient.on.getCalls().find(call => call.args[0] === 'error');
+            const errorHandler = errorEventCall.args[1];
             errorHandler(testError);
 
-            expect(consoleErrorStub.calledWith(testError)).to.be.true;
+            // Updated: Now logs 'Redis Error:' prefix with error message
+            expect(consoleErrorStub.calledWith('Redis Error:', testError.message)).to.be.true;
             consoleErrorStub.restore();
+            consoleLogStub.restore();
         });
     });
 });

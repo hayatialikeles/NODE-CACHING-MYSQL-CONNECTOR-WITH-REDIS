@@ -100,6 +100,7 @@ const con = db.createPool(poolConfig);
 let isShuttingDown = false;
 
 // Retry helper function with optional database switching and timeout protection
+// Fixed: Properly cleanup timeout promises to prevent memory leaks
 async function executeWithRetry(fn, retries = 3, delay = 1000, database = null, timeout = null) {
     for (let i = 0; i < retries; i++) {
         try {
@@ -108,12 +109,19 @@ async function executeWithRetry(fn, retries = 3, delay = 1000, database = null, 
             }
 
             if (timeout) {
-                return await Promise.race([
-                    fn(database),
-                    new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Query timeout exceeded')), timeout)
-                    )
-                ]);
+                let timeoutHandle;
+                const timeoutPromise = new Promise((_, reject) => {
+                    timeoutHandle = setTimeout(() => reject(new Error('Query timeout exceeded')), timeout);
+                });
+
+                try {
+                    const result = await Promise.race([fn(database), timeoutPromise]);
+                    clearTimeout(timeoutHandle);  // Clean up timeout on success
+                    return result;
+                } catch (error) {
+                    clearTimeout(timeoutHandle);  // Clean up timeout on error
+                    throw error;
+                }
             }
 
             return await fn(database);
