@@ -33,10 +33,13 @@ const client = redis.createClient({
     }
 });
 
+// Redis bağlantı durumu
+let isRedisReady = false;
+
 // Connection event handlers
 client.on('error', (err) => {
+    isRedisReady = false;
     console.error('Redis Error:', err.message);
-    // In production, send to monitoring/alerting system
 });
 
 client.on('connect', () => {
@@ -44,6 +47,7 @@ client.on('connect', () => {
 });
 
 client.on('ready', () => {
+    isRedisReady = true;
     console.log('Redis ready');
 });
 
@@ -52,6 +56,7 @@ client.on('reconnecting', (params) => {
 });
 
 client.on('end', () => {
+    isRedisReady = false;
     console.log('Redis connection closed');
 });
 
@@ -59,7 +64,46 @@ const existsAsync = promisify(client.exists).bind(client);
 const getAsync = promisify(client.get).bind(client);
 const setexAsync = promisify(client.setex).bind(client);
 const delAsync = promisify(client.del).bind(client);
-const keysAsync = promisify(client.keys).bind(client);
+const scanAsync = promisify(client.scan).bind(client);
+
+// Bağlantı hazır olana kadar bekle
+function waitForConnection(timeout = 5000) {
+    return new Promise((resolve, reject) => {
+        if (isRedisReady) {
+            return resolve();
+        }
+
+        const timeoutId = setTimeout(() => {
+            reject(new Error('Redis connection timeout'));
+        }, timeout);
+
+        const checkReady = () => {
+            if (isRedisReady) {
+                clearTimeout(timeoutId);
+                resolve();
+            } else {
+                setTimeout(checkReady, 100);
+            }
+        };
+        checkReady();
+    });
+}
+
+// SCAN ile key'leri bul (KEYS yerine - daha güvenli ve replica/cluster uyumlu)
+async function scanKeys(pattern) {
+    await waitForConnection();
+
+    const keys = [];
+    let cursor = '0';
+
+    do {
+        const [newCursor, foundKeys] = await scanAsync(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = newCursor;
+        keys.push(...foundKeys);
+    } while (cursor !== '0');
+
+    return keys;
+}
 
 function _namespaceKey(key) {
     return process.env.REDIS_VHOST ? `${process.env.REDIS_VHOST}:${key}` : key;
@@ -96,14 +140,14 @@ module.exports = {
         if (Array.isArray(keys)) {
             for (const el of keys) {
                 const namespacedPattern = _namespaceKey(`${el}*`);
-                const data = await keysAsync(namespacedPattern);
+                const data = await scanKeys(namespacedPattern);
                 if (data.length) {
                     await Promise.all(data.map(keyItem => delAsync(keyItem)));
                 }
             }
         } else {
             const namespacedPattern = _namespaceKey(`${keys}*`);
-            const data = await keysAsync(namespacedPattern);
+            const data = await scanKeys(namespacedPattern);
             if (data.length) {
                 await Promise.all(data.map(keyItem => delAsync(keyItem)));
             }

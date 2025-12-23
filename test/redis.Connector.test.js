@@ -9,7 +9,7 @@ describe('redis.Connector', () => {
     let getStub;
     let setexStub;
     let delStub;
-    let keysStub;
+    let scanStub;
 
     beforeEach(() => {
         // Create stubs for Redis client methods
@@ -17,15 +17,24 @@ describe('redis.Connector', () => {
         getStub = sinon.stub();
         setexStub = sinon.stub();
         delStub = sinon.stub();
-        keysStub = sinon.stub();
+        scanStub = sinon.stub();
 
         mockRedisClient = {
             exists: sinon.stub().callsFake((key, callback) => callback(null, existsStub(key))),
             get: sinon.stub().callsFake((key, callback) => callback(null, getStub(key))),
             setex: sinon.stub().callsFake((key, ttl, value, callback) => callback(null, setexStub(key, ttl, value))),
             del: sinon.stub().callsFake((keys, callback) => callback(null, delStub(keys))),
-            keys: sinon.stub().callsFake((pattern, callback) => callback(null, keysStub(pattern))),
-            on: sinon.stub()
+            scan: sinon.stub().callsFake((cursor, ...args) => {
+                const callback = args[args.length - 1];
+                const result = scanStub(cursor, args);
+                callback(null, result);
+            }),
+            on: sinon.stub().callsFake((event, handler) => {
+                // Simulate ready event immediately for tests
+                if (event === 'ready') {
+                    setTimeout(() => handler(), 0);
+                }
+            })
         };
 
         // Mock redis module
@@ -155,23 +164,24 @@ describe('redis.Connector', () => {
     });
 
     describe('delPrefixKeyItem', () => {
-        it('should delete all keys matching a prefix', async () => {
+        it('should delete all keys matching a prefix using SCAN', async () => {
             const matchingKeys = [
                 'testapp:users-1',
                 'testapp:users-2',
                 'testapp:users-3'
             ];
-            keysStub.returns(matchingKeys);
-            delStub.returns(3);
+            // SCAN returns [cursor, keys] - cursor '0' means done
+            scanStub.returns(['0', matchingKeys]);
+            delStub.returns(1);
 
             await redisConnector.delPrefixKeyItem('users-');
 
-            expect(mockRedisClient.keys.calledWith('testapp:users-*')).to.be.true;
+            expect(mockRedisClient.scan.called).to.be.true;
             expect(delStub.callCount).to.equal(3);
         });
 
         it('should handle empty results gracefully', async () => {
-            keysStub.returns([]);
+            scanStub.returns(['0', []]);
 
             await redisConnector.delPrefixKeyItem('nonexistent-');
 
@@ -179,32 +189,43 @@ describe('redis.Connector', () => {
         });
 
         it('should handle empty results gracefully for single key (not array)', async () => {
-            keysStub.returns([]);
+            scanStub.returns(['0', []]);
 
             await redisConnector.delPrefixKeyItem('single-nonexistent-');
 
             expect(delStub.called).to.be.false;
-            expect(mockRedisClient.keys.calledOnce).to.be.true;
+            expect(mockRedisClient.scan.called).to.be.true;
         });
 
         it('should delete keys for multiple prefixes', async () => {
-            keysStub.onFirstCall().returns(['testapp:users-1']);
-            keysStub.onSecondCall().returns(['testapp:products-1', 'testapp:products-2']);
+            scanStub.onCall(0).returns(['0', ['testapp:users-1']]);
+            scanStub.onCall(1).returns(['0', ['testapp:products-1', 'testapp:products-2']]);
             delStub.returns(1);
 
             await redisConnector.delPrefixKeyItem(['users-', 'products-']);
 
-            expect(mockRedisClient.keys.firstCall.calledWith('testapp:users-*')).to.be.true;
-            expect(mockRedisClient.keys.secondCall.calledWith('testapp:products-*')).to.be.true;
+            expect(mockRedisClient.scan.callCount).to.equal(2);
             expect(delStub.callCount).to.equal(3);
         });
 
         it('should use Promise.all for parallel deletion', async () => {
             const keys = ['testapp:cache-1', 'testapp:cache-2', 'testapp:cache-3'];
-            keysStub.returns(keys);
+            scanStub.returns(['0', keys]);
 
             await redisConnector.delPrefixKeyItem('cache-');
 
+            expect(delStub.callCount).to.equal(3);
+        });
+
+        it('should handle multiple SCAN iterations', async () => {
+            // First call returns cursor '1' (more data), second returns '0' (done)
+            scanStub.onCall(0).returns(['1', ['testapp:key-1', 'testapp:key-2']]);
+            scanStub.onCall(1).returns(['0', ['testapp:key-3']]);
+            delStub.returns(1);
+
+            await redisConnector.delPrefixKeyItem('key-');
+
+            expect(mockRedisClient.scan.callCount).to.equal(2);
             expect(delStub.callCount).to.equal(3);
         });
     });
@@ -252,11 +273,16 @@ describe('redis.Connector', () => {
                 exists: sinon.stub().callsFake((key, callback) => {
                     callback(new Error('Redis connection failed'), null);
                 }),
-                get: sinon.stub(),
-                setex: sinon.stub(),
-                del: sinon.stub(),
-                keys: sinon.stub(),
-                on: sinon.stub()
+                get: sinon.stub().callsFake((key, callback) => callback(null, null)),
+                setex: sinon.stub().callsFake((k, t, v, callback) => callback(null, 'OK')),
+                del: sinon.stub().callsFake((keys, callback) => callback(null, 1)),
+                scan: sinon.stub().callsFake((cursor, ...args) => {
+                    const callback = args[args.length - 1];
+                    callback(null, ['0', []]);
+                }),
+                on: sinon.stub().callsFake((event, handler) => {
+                    if (event === 'ready') setTimeout(() => handler(), 0);
+                })
             };
 
             const errorConnector = proxyquire('../redis.Connector', {
