@@ -53,11 +53,12 @@ describe('index.js - Main Export', () => {
         expect(index.delKeyItem).to.be.a('function');
         expect(index.delPrefixKeyItem).to.be.a('function');
         expect(index.getRedisClient).to.be.a('function');
+        expect(index.isRedisConnected).to.be.a('function');
     });
 
-    it('should export exactly 16 functions (v2.7.0)', () => {
+    it('should export exactly 17 functions (v2.8.0)', () => {
         const exportedKeys = Object.keys(index);
-        expect(exportedKeys).to.have.lengthOf(16);
+        expect(exportedKeys).to.have.lengthOf(17);
     });
 
     it('should have correct function names', () => {
@@ -73,6 +74,7 @@ describe('index.js - Main Export', () => {
             'addArrayItem',
             'delKeyItem',
             'delPrefixKeyItem',
+            'isRedisConnected',
             'getRedisClient'
         ];
 

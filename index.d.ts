@@ -225,6 +225,21 @@ declare module 'node-caching-mysql-connector-with-redis' {
     export function delPrefixKeyItem(keys: string | string[]): Promise<void>;
 
     /**
+     * Check if Redis connection is healthy.
+     * Useful for health-check endpoints and monitoring.
+     *
+     * @returns true if Redis is connected and ready
+     *
+     * @example
+     * ```typescript
+     * app.get('/health', (req, res) => {
+     *   res.json({ redis: isRedisConnected() });
+     * });
+     * ```
+     */
+    export function isRedisConnected(): boolean;
+
+    /**
      * Returns the raw Redis client instance
      *
      * @returns The Redis client
@@ -602,6 +617,7 @@ declare module 'node-caching-mysql-connector-with-redis' {
         addArrayItem: typeof addArrayItem;
         delKeyItem: typeof delKeyItem;
         delPrefixKeyItem: typeof delPrefixKeyItem;
+        isRedisConnected: typeof isRedisConnected;
         getRedisClient: typeof getRedisClient;
     };
 

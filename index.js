@@ -23,6 +23,7 @@ module.exports = {
     addArrayItem: redisConnector.addArrayItem,
     delKeyItem: redisConnector.delKeyItem,
     delPrefixKeyItem: redisConnector.delPrefixKeyItem,
+    isRedisConnected: redisConnector.isRedisConnected,
     getRedisClient: redisConnector.getRedisClient,
 
     // v2.6.0 Core Features (Opt-in)
