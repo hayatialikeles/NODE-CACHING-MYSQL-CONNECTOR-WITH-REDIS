@@ -89,30 +89,32 @@ describe('redis.Connector', () => {
     describe('getArrayItem', () => {
         it('should return parsed data if key exists', async () => {
             const testData = [{ id: 1, name: 'Test' }];
-            existsStub.returns(1);
             getStub.returns(JSON.stringify(testData));
 
             const result = await redisConnector.getArrayItem('test-key');
 
             expect(result).to.deep.equal(testData);
-            expect(mockRedisClient.exists.calledWith('testapp:test-key')).to.be.true;
+            expect(mockRedisClient.get.calledWith('testapp:test-key')).to.be.true;
         });
 
         it('should return empty array if key does not exist', async () => {
-            existsStub.returns(0);
+            // Redis GET returns nil (null) for a missing key — no separate
+            // EXISTS check (see redis.Connector.js: EXISTS-then-GET was a
+            // TOCTOU race, fixed 2026-07-09).
+            getStub.returns(null);
 
             const result = await redisConnector.getArrayItem('nonexistent-key');
 
             expect(result).to.deep.equal([]);
-            expect(mockRedisClient.get.called).to.be.false;
+            expect(mockRedisClient.get.called).to.be.true;
         });
 
         it('should use namespace from REDIS_VHOST', async () => {
-            existsStub.returns(0);
+            getStub.returns(null);
 
             await redisConnector.getArrayItem('my-key');
 
-            expect(mockRedisClient.exists.calledWith('testapp:my-key')).to.be.true;
+            expect(mockRedisClient.get.calledWith('testapp:my-key')).to.be.true;
         });
 
         it('should work without namespace if REDIS_VHOST is not set', async () => {
@@ -122,10 +124,10 @@ describe('redis.Connector', () => {
                 'redis': { createClient: sinon.stub().returns(mockRedisClient) }
             });
 
-            existsStub.returns(0);
+            getStub.returns(null);
             await redisConnector.getArrayItem('my-key');
 
-            expect(mockRedisClient.exists.calledWith('my-key')).to.be.true;
+            expect(mockRedisClient.get.calledWith('my-key')).to.be.true;
         });
 
         it('should return empty array on Redis failure (graceful degradation)', async () => {
@@ -133,7 +135,7 @@ describe('redis.Connector', () => {
                 exists: existsStub, get: getStub, setex: setexStub,
                 del: delStub, scan: scanStub
             });
-            errorClient.exists = sinon.stub().callsFake((key, callback) => {
+            errorClient.get = sinon.stub().callsFake((key, callback) => {
                 callback(new Error('Redis connection failed'), null);
             });
 
@@ -143,6 +145,20 @@ describe('redis.Connector', () => {
 
             const result = await errorConnector.getArrayItem('test-key');
             expect(result).to.deep.equal([]);
+        });
+
+        it('should return empty array when the key is deleted between an in-flight read and the GET (race regression)', async () => {
+            // Regression test for the 2026-07-09 production incident: a
+            // concurrent cache-invalidation DEL racing a read used to leave
+            // GET returning nil while the (now-removed) EXISTS check had
+            // already returned true, so JSON.parse(null) silently produced
+            // the JS value `null` instead of throwing — and callers doing
+            // `cachedData.length` crashed. Simulating the race here simply
+            // means: GET itself returns nil, which must still yield [].
+            getStub.returns(null);
+            const result = await redisConnector.getArrayItem('raced-key');
+            expect(result).to.deep.equal([]);
+            expect(() => result.length).to.not.throw();
         });
     });
 
@@ -308,9 +324,9 @@ describe('redis.Connector', () => {
                 'redis': { createClient: sinon.stub().returns(client) }
             });
 
-            existsStub.returns(0);
+            getStub.returns(null);
             await redisConnector.getArrayItem('test');
-            expect(client.exists.calledWith('myapp:test')).to.be.true;
+            expect(client.get.calledWith('myapp:test')).to.be.true;
         });
 
         it('should not prefix keys when REDIS_VHOST is not set', async () => {
@@ -325,9 +341,9 @@ describe('redis.Connector', () => {
                 'redis': { createClient: sinon.stub().returns(client) }
             });
 
-            existsStub.returns(0);
+            getStub.returns(null);
             await redisConnector.getArrayItem('test');
-            expect(client.exists.calledWith('test')).to.be.true;
+            expect(client.get.calledWith('test')).to.be.true;
         });
     });
 
@@ -337,7 +353,7 @@ describe('redis.Connector', () => {
                 exists: existsStub, get: getStub, setex: setexStub,
                 del: delStub, scan: scanStub
             });
-            errorClient.exists = sinon.stub().callsFake((key, callback) => {
+            errorClient.get = sinon.stub().callsFake((key, callback) => {
                 callback(new Error('Redis connection failed'), null);
             });
 
@@ -350,7 +366,6 @@ describe('redis.Connector', () => {
         });
 
         it('should handle JSON parse errors with graceful fallback', async () => {
-            existsStub.returns(1);
             getStub.returns('invalid-json{{{');
 
             const result = await redisConnector.getArrayItem('test-key');
@@ -391,7 +406,7 @@ describe('redis.Connector', () => {
                 }
             }, 50);
 
-            existsStub.returns(0);
+            getStub.returns(null);
             const result = await redisConnector.getArrayItem('test');
             expect(result).to.deep.equal([]);
         });

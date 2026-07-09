@@ -55,7 +55,6 @@ client.on('end', () => {
 });
 
 // ── Promisified Commands ───────────────────────────────────────
-const existsAsync = promisify(client.exists).bind(client);
 const getAsync    = promisify(client.get).bind(client);
 const setexAsync  = promisify(client.setex).bind(client);
 const delAsync    = promisify(client.del).bind(client);
@@ -140,16 +139,27 @@ const DEL_BATCH_SIZE = 100;
 module.exports = {
     /**
      * Get cached array item. Returns [] on cache miss OR Redis failure.
+     *
+     * Single atomic GET — no separate EXISTS check. EXISTS-then-GET is a
+     * classic TOCTOU race: if the key is deleted (TTL expiry, or a
+     * concurrent cache-invalidation DEL/SCAN) in the gap between the two
+     * calls, GET returns nil and `JSON.parse(null)` silently succeeds as
+     * the JS value `null` (JSON.parse coerces its argument via String()
+     * first, and String(null) === 'null') — so callers checking
+     * `cachedData.length` crash with "Cannot read properties of null"
+     * instead of getting the documented [] cache-miss value. Observed in
+     * production 2026-07-09 during a bulk cache-flush that raced live
+     * traffic. A plain GET already returns nil for a missing key, so the
+     * EXISTS round-trip was redundant as well as the source of the bug.
      */
     async getArrayItem(key) {
         return safeExec(async () => {
             const namespacedKey = _namespaceKey(key);
-            const exists = await existsAsync(namespacedKey);
-            if (exists) {
-                const reply = await getAsync(namespacedKey);
-                return JSON.parse(reply);
+            const reply = await getAsync(namespacedKey);
+            if (reply === null || reply === undefined) {
+                return [];
             }
-            return [];
+            return JSON.parse(reply);
         }, []);
     },
 
